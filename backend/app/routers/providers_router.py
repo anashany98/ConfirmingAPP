@@ -57,10 +57,13 @@ def normalize_columns(columns):
 import logging
 
 # Configure logging
+import sys
+
+# Configure logging to stdout so it appears in Docker logs
 logging.basicConfig(
-    filename='providers_debug.log',
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger(__name__)
 
