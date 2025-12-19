@@ -114,10 +114,10 @@ async def upload_providers(file: UploadFile = File(...), db: Session = Depends(g
 
     # Normalize headers
     df.columns = [str(c).upper().strip() for c in df.columns]
-    logger.info(f"Columns detected: {list(df.columns)}")
+    print(f"DEBUG: Columns detected: {list(df.columns)}", flush=True)
     
     col_map = normalize_columns(df.columns)
-    logger.info(f"Column Mapping Result: {col_map}")
+    print(f"DEBUG: Column Mapping Result: {col_map}", flush=True)
 
     if 'CIF' not in col_map:
         logger.error(f"Missing CIF in mapping. Mapping: {col_map}")
