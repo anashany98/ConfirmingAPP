@@ -77,7 +77,7 @@ export default function Dashboard() {
                                     />
                                     <Tooltip
                                         cursor={{ fill: '#f1f5f9' }}
-                                        formatter={(value: number) => [formatCurrency(value), 'Importe']}
+                                        formatter={(value: any) => [formatCurrency(Number(value) || 0), 'Importe']}
                                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                     />
                                     <Bar
@@ -114,7 +114,7 @@ export default function Dashboard() {
                                             <Cell key={`cell-${index}`} fill={entry.color} />
                                         ))}
                                     </Pie>
-                                    <Tooltip formatter={(value: number) => [value, 'Facturas']} />
+                                    <Tooltip formatter={(value: any) => [value, 'Facturas']} />
                                     <Legend verticalAlign="bottom" height={36} iconType="circle" />
                                 </PieChart>
                             </ResponsiveContainer>
