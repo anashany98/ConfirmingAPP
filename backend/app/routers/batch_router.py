@@ -148,10 +148,10 @@ def export_batch(batch_id: int, db: Session = Depends(get_db)):
                 f.write(f"\n[ERROR GENERATING EXCEL]: {str(e)}\n{traceback.format_exc()}\n")
             raise HTTPException(status_code=500, detail=f"Error generando Excel: {str(e)}")
         
-        # Filename: [CurrentDate]_CONFIRMING_[DueDate]
-        today_str = datetime.now().strftime('%d-%m-%Y')
+        # Filename: [CreationDate]_CONFIRMING_[DueDate]
+        creation_date_str = batch.created_at.strftime('%d-%m-%Y') if batch.created_at else datetime.now().strftime('%d-%m-%Y')
         due_date_str = batch.payment_date.strftime('%d-%m-%Y') if batch.payment_date else "SinVencimiento"
-        filename = f"{today_str}_CONFIRMING_{due_date_str}.xlsx"
+        filename = f"{creation_date_str}_CONFIRMING_{due_date_str}.xlsx"
         
         # Check for export path in settings
         from ..models import Settings
