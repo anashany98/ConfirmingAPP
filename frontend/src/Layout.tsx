@@ -1,22 +1,24 @@
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Upload, History, FileText, Users } from 'lucide-react'
+import { LayoutDashboard, Upload, History, FileText, Users, Calendar, Search } from 'lucide-react'
 import { clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import CommandPalette from './components/CommandPalette'
 
 function cn(...inputs: any[]) {
     return twMerge(clsx(inputs))
 }
 
+const navItems = [
+    { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    { name: 'Calendario', path: '/calendar', icon: Calendar },
+    { name: 'Proveedores', path: '/providers', icon: Users },
+    { name: 'Nueva Remesa', path: '/upload', icon: Upload },
+    { name: 'Histórico', path: '/history', icon: History },
+    { name: 'Ajustes', path: '/settings', icon: FileText },
+]
+
 export default function Layout() {
     const location = useLocation()
-
-    const navItems = [
-        { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-        { name: 'Proveedores', path: '/providers', icon: Users },
-        { name: 'Nueva Remesa', path: '/upload', icon: Upload },
-        { name: 'Histórico', path: '/history', icon: History },
-        { name: 'Ajustes', path: '/settings', icon: FileText },
-    ]
 
     return (
         <div className="flex h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200">
@@ -72,7 +74,20 @@ export default function Layout() {
                     <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
                         {navItems.find(i => i.path === location.pathname)?.name || 'Confirming'}
                     </h1>
+
                     <div className="flex items-center gap-4">
+                        {/* Search Trigger Mockup */}
+                        <div className="hidden md:flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-transparent hover:border-slate-300 dark:hover:border-slate-600 cursor-pointer text-slate-500 dark:text-slate-400 text-sm transition-all"
+                            onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
+                        >
+                            <Search size={16} />
+                            <span>Buscar...</span>
+                            <div className="flex gap-1 ml-4">
+                                <kbd className="bg-white dark:bg-slate-700 px-1.5 rounded text-xs border border-slate-200 dark:border-slate-600">Ctrl</kbd>
+                                <kbd className="bg-white dark:bg-slate-700 px-1.5 rounded text-xs border border-slate-200 dark:border-slate-600">K</kbd>
+                            </div>
+                        </div>
+
                         <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 border border-white dark:border-slate-600 shadow-sm"></div>
                     </div>
                 </header>
@@ -81,6 +96,8 @@ export default function Layout() {
                     <Outlet />
                 </div>
             </main>
+
+            <CommandPalette />
         </div>
     )
 }

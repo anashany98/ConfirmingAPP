@@ -8,7 +8,9 @@ import UploadPage from './pages/UploadPage'
 import HistoryPage from './pages/HistoryPage'
 import SettingsPage from './pages/SettingsPage'
 
+import CalendarPage from './pages/CalendarPage'
 import ProvidersPage from './pages/ProvidersPage'
+import ProviderDetailsPage from './pages/ProviderDetailsPage'
 
 const queryClient = new QueryClient()
 
@@ -20,9 +22,11 @@ function App() {
           <Routes>
             <Route path="/" element={<Layout />}>
               <Route index element={<Dashboard />} />
+              <Route path="calendar" element={<CalendarPage />} />
               <Route path="upload" element={<UploadPage />} />
               <Route path="history" element={<HistoryPage />} />
               <Route path="providers" element={<ProvidersPage />} />
+              <Route path="providers/:cif" element={<ProviderDetailsPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Routes>

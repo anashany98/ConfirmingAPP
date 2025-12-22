@@ -31,6 +31,7 @@ export default function UploadPage() {
     const [fileHash, setFileHash] = useState<string>("")
     const [emailResolutionQueue, setEmailResolutionQueue] = useState<Invoice[]>([])
     const [showEmailModal, setShowEmailModal] = useState(false)
+    const [skippedEmailCheck, setSkippedEmailCheck] = useState(false)
 
     // Missing Email Handling
     const [missingEmailQueue, setMissingEmailQueue] = useState<Invoice[]>([])
@@ -84,7 +85,7 @@ export default function UploadPage() {
         // 2. Missing Emails
         // Filter for valid CIF but missing email
         const missingEmails = currentInvoices.filter((inv: Invoice) => (!inv.email || inv.email.trim() === "") && inv.cif)
-        if (missingEmails.length > 0) {
+        if (!skippedEmailCheck && missingEmails.length > 0) {
             setMissingEmailQueue(missingEmails)
             setShowMissingEmailModal(true)
             return
@@ -464,6 +465,7 @@ export default function UploadPage() {
                             })
 
                             setShowMissingEmailModal(false)
+                            setSkippedEmailCheck(true)
                             runValidationSequence(nextInvoices)
                         }}
                     />
@@ -725,12 +727,11 @@ function MissingEmailModal({ invoices, onResolve }: { invoices: Invoice[], onRes
 
         for (const inv of invoices) {
             const val = inputs[inv.id]
-            if (!val || !val.includes('@')) {
-                alert(`Introduce un email válido para ${inv.nombre} (${inv.cif})`)
-                return
+            // Allow empty values (Skip)
+            if (val && val.includes('@')) {
+                updates.push({ cif: inv.cif, email: val })
+                finalMap[inv.id] = val
             }
-            updates.push({ cif: inv.cif, email: val })
-            finalMap[inv.id] = val
         }
 
         onResolve(finalMap, updates)
@@ -745,7 +746,7 @@ function MissingEmailModal({ invoices, onResolve }: { invoices: Invoice[], onRes
                         Faltan Correos Electrónicos
                     </h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Los siguientes proveedores no tienen email asignado. Por favor, introdúcelos para continuar.
+                        Los siguientes proveedores no tienen email asignado. Puedes introducirlos ahora o continuar sin ellos.
                     </p>
                 </div>
 
@@ -769,8 +770,11 @@ function MissingEmailModal({ invoices, onResolve }: { invoices: Invoice[], onRes
                 </div>
 
                 <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/50 flex justify-end">
+                    <button className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 font-medium" onClick={() => onResolve({}, [])}>
+                        Omitir paso
+                    </button>
                     <button className="bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-6 py-2 rounded-lg font-medium" onClick={handleConfirm}>
-                        Guardar Correos
+                        Guardar y Continuar
                     </button>
                 </div>
             </div>

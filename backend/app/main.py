@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import import_router, batch_router, settings_router, providers_router, logs_router
+from .routers import import_router, batch_router, settings_router, providers_router, logs_router, search_router, reports_router
 from .database import engine, Base
 
 # Create tables
@@ -14,13 +14,16 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 app.include_router(import_router.router)
 app.include_router(batch_router.router)
-app.include_router(settings_router.router)
-app.include_router(providers_router.router)
 app.include_router(logs_router.router)
+app.include_router(providers_router.router)
+app.include_router(settings_router.router)
+app.include_router(search_router.router)
+app.include_router(reports_router.router)
 
 @app.get("/")
 def read_root():

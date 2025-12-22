@@ -170,7 +170,7 @@ def process_factusol_report(df: pd.DataFrame, db: Session = None):
                 val_msgs.append("Importe 0")
 
             if not iban:
-                status = "ERROR"
+                status = "WARNING"
                 val_msgs.append("Falta IBAN")
             elif not validate_iban(iban):
                 status = "ERROR"
@@ -220,7 +220,8 @@ def process_flat_table(content: bytes, db: Session = None):
         'PAYMENT_DATE': ['FECHA_PAGO', 'VENCIMIENTO', 'FECHA', 'DATE'],
         'CIF': ['CIF', 'NIF'],
         'NAME': ['NOMBRE', 'PROVEEDOR', 'NAME'],
-        'IBAN': ['IBAN', 'CUENTA', 'ACCOUNT']
+        'IBAN': ['IBAN', 'CUENTA', 'ACCOUNT'],
+        'EMAIL': ['EMAIL', 'CORREO', 'MAIL', 'E-MAIL']
     }
     
     final_col_map = {}
@@ -240,9 +241,13 @@ def process_flat_table(content: bytes, db: Session = None):
             "cif": str(row.get(final_col_map.get('CIF'), '')),
             "nombre": str(row.get(final_col_map.get('NAME'), '')),
             "cuenta": str(row.get(final_col_map.get('IBAN'), '')),
+            "email": str(row.get(final_col_map.get('EMAIL'), '')),
             "status": "VALID"
         }
         
+        # Clean email if 'nan'
+        if inv['email'] == 'nan': inv['email'] = ""
+
         # Handle Amount conversion
         try:
             if isinstance(raw_amount, (int, float)):
@@ -270,7 +275,9 @@ def process_flat_table(content: bytes, db: Session = None):
                 if not inv['nombre'] or inv['nombre'] == 'nan': inv['nombre'] = provider.name
                 
                 # Enrichment and Mismatch Logic
-                inv['email'] = provider.email or ""
+                # Only overwrite if empty
+                if not inv['email']:
+                    inv['email'] = provider.email or ""
                 inv['db_iban'] = provider.iban or ""
                 inv['iban_mismatch'] = False
                 

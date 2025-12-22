@@ -31,12 +31,9 @@ def update_settings(settings_in: SettingsCreate, db: Session = Depends(get_db)):
         settings = Settings()
         db.add(settings)
     
-    settings.codigo_empresa = settings_in.codigo_empresa
-    settings.numero_cuenta_cargo = settings_in.numero_cuenta_cargo
-    settings.sufijo = settings_in.sufijo
-    settings.nombre_empresa = settings_in.nombre_empresa
-    settings.cif_empresa = settings_in.cif_empresa
-    settings.export_path = settings_in.export_path
+    settings_data = settings_in.dict(exclude_unset=True)
+    for key, value in settings_data.items():
+        setattr(settings, key, value)
     
     db.commit()
     db.refresh(settings)

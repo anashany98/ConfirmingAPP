@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Enum as SqEnum
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Enum as SqEnum, Boolean
 from sqlalchemy.orm import relationship
 import enum
 from datetime import datetime
@@ -23,6 +23,7 @@ class Batch(Base):
     file_hash = Column(String, index=True, nullable=True)
     payment_date = Column(DateTime, nullable=True)
     status = Column(SqEnum(BatchStatus), default=BatchStatus.DRAFT)
+    uploaded_to_bank = Column(Boolean, default=False)
     
     invoices = relationship("Invoice", back_populates="batch")
 
@@ -65,6 +66,13 @@ class Settings(Base):
     nombre_empresa = Column(String, default="")
     cif_empresa = Column(String, default="")
     export_path = Column(String, default="") # Folder to save exports
+    
+    # SMTP Email Configuration
+    smtp_server = Column(String, default="")
+    smtp_port = Column(Integer, default=587)
+    smtp_user = Column(String, default="")
+    smtp_password = Column(String, default="") # Should be encrypted in prod but plain text for local MVP
+    smtp_from_email = Column(String, default="")
 
 class Provider(Base):
     __tablename__ = "providers"

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { useDropzone } from 'react-dropzone'
 import clsx from 'clsx'
+import { Link } from 'react-router-dom'
 import { Upload, CheckCircle, AlertCircle, Users, Search, Plus, Trash2, Edit2, X } from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -243,7 +244,11 @@ export default function ProvidersPage() {
                                 paginatedProviders.map((p: Provider) => (
                                     <tr key={p.cif} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors bg-white dark:bg-slate-900">
                                         <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">{p.cif}</td>
-                                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-200">{p.name}</td>
+                                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-200">
+                                            <Link to={`/providers/${p.cif}`} className="hover:text-blue-600 hover:underline">
+                                                {p.name}
+                                            </Link>
+                                        </td>
                                         <td className="px-4 py-3 text-slate-600 dark:text-slate-400 truncate max-w-[200px]" title={p.address}>{p.address}</td>
                                         <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
                                             <span>{p.city}</span> <span className="text-slate-400 dark:text-slate-500 text-xs">({p.zip_code})</span>

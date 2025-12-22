@@ -215,3 +215,96 @@ def delete_provider(cif: str, db: Session = Depends(get_db)):
     db.delete(db_prov)
     db.commit()
     return None
+
+# --- STATS ENDPOINTS ---
+
+from pydantic import BaseModel
+from typing import Optional
+from ..models import Invoice, Batch
+from sqlalchemy import func
+
+class Insight(BaseModel):
+    type: str # 'positive', 'warning', 'info'
+    message: str
+
+class ProviderStats(BaseModel):
+    cif: str
+    name: str
+    total_amount: float
+    total_invoices: int
+    last_payment_date: Optional[str] = None
+    average_amount: float
+    insights: List[Insight] = []
+
+@router.get("/{cif}/stats", response_model=ProviderStats)
+def get_provider_stats(cif: str, db: Session = Depends(get_db)):
+    # Get basic info (Name from latest invoice to be sure, or Provider table)
+    # Prefer Provider table if exists
+    provider = db.query(Provider).filter(Provider.cif == cif).first()
+    
+    # Fallback to invoice name if provider not in DB but has invoices?
+    # Or just use latest invoice name
+    latest_invoice = db.query(Invoice).filter(Invoice.cif == cif).order_by(Invoice.id.desc()).first()
+
+    if not latest_invoice and not provider:
+         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+
+    name = provider.name if provider and provider.name else (latest_invoice.nombre if latest_invoice else "Desconocido")
+
+    # Aggregate
+    stats = db.query(
+        func.sum(Invoice.importe),
+        func.count(Invoice.id),
+        func.avg(Invoice.importe)
+    ).filter(Invoice.cif == cif).first()
+    
+    total_amount = stats[0] or 0.0
+    total_invoices = stats[1] or 0
+    avg_amount = stats[2] or 0.0
+    
+    # Last Payment Date (From Batch payment_date)
+    last_batch = db.query(Batch).join(Invoice).filter(Invoice.cif == cif).filter(Batch.payment_date != None).order_by(Batch.payment_date.desc()).first()
+    last_payment = last_batch.payment_date.strftime("%Y-%m-%d") if last_batch and last_batch.payment_date else None
+
+    # GENERATE AI INSIGHTS
+    insights = []
+    
+    # 1. VIP Provider
+    if total_amount > 50000:
+        insights.append(Insight(type="positive", message="Proveedor VIP: Volumen acumulado superior a 50k€"))
+    
+    # 2. Frequent Provider
+    if total_invoices > 12:
+        insights.append(Insight(type="info", message="Proveedor Recurrente: Más de 12 facturas procesadas"))
+        
+    # 3. High Average Ticket
+    if avg_amount > 4000:
+        insights.append(Insight(type="warning", message=f"Ticket Medio Alto: {avg_amount:,.2f}€ por factura"))
+
+    # 4. Inactive Check
+    from datetime import datetime
+    if last_payment:
+        last_date = datetime.strptime(last_payment, "%Y-%m-%d").date()
+        days_diff = (datetime.now().date() - last_date).days
+        if days_diff > 90:
+             insights.append(Insight(type="warning", message=f"Inactivo: Último pago hace {days_diff} días"))
+    else:
+        # Never paid?
+        if total_invoices > 0:
+             insights.append(Insight(type="info", message="Pendiente de primer pago confirmado"))
+
+    return {
+        "cif": cif,
+        "name": name,
+        "total_amount": total_amount,
+        "total_invoices": total_invoices,
+        "last_payment_date": last_payment,
+        "average_amount": avg_amount,
+        "insights": insights
+    }
+
+from ..schemas import Invoice as InvoiceSchema
+@router.get("/{cif}/invoices", response_model=List[InvoiceSchema])
+def get_provider_invoices(cif: str, db: Session = Depends(get_db)):
+    invoices = db.query(Invoice).filter(Invoice.cif == cif).order_by(Invoice.id.desc()).all()
+    return invoices

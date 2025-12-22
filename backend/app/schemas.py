@@ -43,6 +43,7 @@ class Batch(BatchBase):
     created_at: datetime
     payment_date: Optional[datetime] = None
     status: str
+    uploaded_to_bank: bool = False
     total_amount: Optional[float] = 0.0
     invoices: List[Invoice] = []
 
@@ -56,6 +57,11 @@ class SettingsBase(BaseModel):
     nombre_empresa: Optional[str] = ""
     cif_empresa: Optional[str] = ""
     export_path: Optional[str] = ""
+    smtp_server: Optional[str] = ""
+    smtp_port: Optional[int] = 587
+    smtp_user: Optional[str] = ""
+    smtp_password: Optional[str] = ""
+    smtp_from_email: Optional[str] = ""
 
 class SettingsCreate(SettingsBase):
     pass

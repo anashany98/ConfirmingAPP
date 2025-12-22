@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { Skeleton } from '../components/ui/skeleton'
-import { Trash2, FileText, CheckCircle, Calendar, FileSpreadsheet, Clock, Download, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Trash2, FileText, CheckCircle, Calendar, FileSpreadsheet, Clock, Download, ChevronLeft, ChevronRight, Eye, Search, X, AlertTriangle } from 'lucide-react'
+import { BatchDetailsModal } from '../components/BatchDetailsModal'
 import { ConfirmationModal } from '../components/ConfirmationModal'
 import { toast } from 'sonner'
 
@@ -14,6 +15,7 @@ interface Batch {
     created_at: string
     payment_date?: string
     status: string
+    uploaded_to_bank?: boolean
     total_amount?: number
     invoices: any[] // Just for count
 }
@@ -30,18 +32,30 @@ interface ImportLog {
 export default function HistoryPage() {
     const [view, setView] = useState<'batches' | 'logs'>('batches')
     const [batchToDelete, setBatchToDelete] = useState<number | null>(null)
+    const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null)
+    const [isDetailsOpen, setIsDetailsOpen] = useState(false)
     const [page, setPage] = useState(0)
+    const [searchTerm, setSearchTerm] = useState('')
+    const [startDate, setStartDate] = useState('')
+    const [endDate, setEndDate] = useState('')
     const pageSize = 10
     const queryClient = useQueryClient()
 
     // Batches Query
     const { data: batchesData, isLoading: loadingBatches } = useQuery({
-        queryKey: ['batches', page],
+        queryKey: ['batches', page, searchTerm, startDate, endDate],
         queryFn: async () => {
-            const res = await axios.get(`${API_URL}/batches/?skip=${page * pageSize}&limit=${pageSize}`)
+            const params = new URLSearchParams()
+            params.append('skip', (page * pageSize).toString())
+            params.append('limit', pageSize.toString())
+            if (searchTerm) params.append('search', searchTerm)
+            if (startDate) params.append('start_date', startDate)
+            if (endDate) params.append('end_date', endDate)
+
+            const res = await axios.get(`${API_URL}/batches/?${params.toString()}`)
             return res.data as { items: Batch[], total: number }
         },
-        placeholderData: (previousData) => previousData // Keep visual data while loading new page
+        placeholderData: (previousData) => previousData
     })
 
     // Logs Query
@@ -53,9 +67,25 @@ export default function HistoryPage() {
         }
     })
 
+    // Selected Batch Details Query
+    const { data: selectedBatch, isLoading: loadingSelectedBatch } = useQuery({
+        queryKey: ['batch', selectedBatchId],
+        queryFn: async () => {
+            if (!selectedBatchId) return null
+            const res = await axios.get(`${API_URL}/batches/${selectedBatchId}`)
+            return res.data
+        },
+        enabled: !!selectedBatchId
+    })
+
     // Format date
     const formatDate = (dateStr: string) => {
         return new Date(dateStr).toLocaleString('es-ES')
+    }
+
+    const handleViewBatch = (id: number) => {
+        setSelectedBatchId(id)
+        setIsDetailsOpen(true)
     }
 
     const handleDownload = async (id: number) => {
@@ -65,8 +95,6 @@ export default function HistoryPage() {
                 responseType: 'blob'
             })
 
-            // Check if response is JSON (Success message for server save)
-            // Axios with responseType blob returns a Blob even for JSON, we must check type
             if (response.data.type === 'application/json') {
                 const text = await response.data.text()
                 const data = JSON.parse(text)
@@ -74,12 +102,10 @@ export default function HistoryPage() {
                 return
             }
 
-            // Normal file download logic (Fallback if no server path configured)
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
 
-            // Extract filename
             const contentDisposition = response.headers['content-disposition'];
             let fileName = 'remesa.xlsx';
             if (contentDisposition) {
@@ -97,6 +123,27 @@ export default function HistoryPage() {
         } catch (error: any) {
             console.error(error)
             toast.error("Error al exportar: " + (error.message || "Error desconocido"))
+        }
+    }
+
+    const handlePrint = async (id: number) => {
+        try {
+            toast.info("Generando PDF...")
+            const response = await axios.get(`${API_URL}/batches/${id}/export-pdf`, {
+                responseType: 'blob'
+            })
+
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `Orden_Remesa_${id}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            toast.success("PDF descargado")
+        } catch (error: any) {
+            console.error(error)
+            toast.error("Error al generar PDF")
         }
     }
 
@@ -118,6 +165,23 @@ export default function HistoryPage() {
         if (batchToDelete) {
             deleteMutation.mutate(batchToDelete)
         }
+    }
+
+    const toggleUploadMutation = useMutation({
+        mutationFn: async (batchId: number) => {
+            await axios.patch(`${API_URL}/batches/${batchId}/toggle-upload`)
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['batches'] })
+            toast.success('Estado actualizado')
+        },
+        onError: () => {
+            toast.error('Error al actualizar estado')
+        }
+    })
+
+    const handleToggleUpload = (id: number) => {
+        toggleUploadMutation.mutate(id)
     }
 
     return (
@@ -150,6 +214,44 @@ export default function HistoryPage() {
             {view === 'batches' ? (
                 // --- BATCHES TABLE ---
                 <>
+                    {/* Filters Bar */}
+                    <div className="flex flex-wrap items-center gap-4 mb-6 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                        <div className="relative flex-1 min-w-[200px]">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                            <input
+                                type="text"
+                                placeholder="Buscar remesa..."
+                                value={searchTerm}
+                                onChange={(e) => { setSearchTerm(e.target.value); setPage(0) }}
+                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => { setStartDate(e.target.value); setPage(0) }}
+                                className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:outline-none focus:border-blue-500"
+                            />
+                            <span className="text-slate-400">-</span>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => { setEndDate(e.target.value); setPage(0) }}
+                                className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:outline-none focus:border-blue-500"
+                            />
+                        </div>
+                        {(searchTerm || startDate || endDate) && (
+                            <button
+                                onClick={() => { setSearchTerm(''); setStartDate(''); setEndDate(''); setPage(0) }}
+                                className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                title="Limpiar filtros"
+                            >
+                                <X size={20} />
+                            </button>
+                        )}
+                    </div>
+
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden">
                         <table className="w-full text-sm text-left">
                             <thead className="bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 font-medium border-b border-slate-200 dark:border-slate-800">
@@ -159,6 +261,7 @@ export default function HistoryPage() {
                                     <th className="px-6 py-4">Importe Total</th>
                                     <th className="px-6 py-4">Fecha Vencimiento</th>
                                     <th className="px-6 py-4">Estado</th>
+                                    <th className="px-6 py-4 text-center">Subido al Banco</th>
                                     <th className="px-6 py-4 text-right">Acciones</th>
                                 </tr>
                             </thead>
@@ -193,14 +296,45 @@ export default function HistoryPage() {
                                                 {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(batch.total_amount || 0)}
                                             </td>
                                             <td className="px-6 py-4">
-                                                {batch.payment_date ? (
-                                                    <div className="flex items-center gap-2 w-fit px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50">
-                                                        <Calendar size={14} className="text-indigo-500 dark:text-indigo-400" />
-                                                        <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">
-                                                            {new Date(batch.payment_date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                                        </span>
-                                                    </div>
-                                                ) : (
+                                                {batch.payment_date ? (() => {
+                                                    const today = new Date()
+                                                    today.setHours(0, 0, 0, 0)
+                                                    const pDate = new Date(batch.payment_date)
+                                                    pDate.setHours(0, 0, 0, 0)
+                                                    const diffTime = pDate.getTime() - today.getTime()
+                                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+                                                    const isExpired = diffDays < 0 && batch.status !== 'SENT'
+                                                    const isWarning = diffDays >= 0 && diffDays <= 3 && batch.status !== 'SENT'
+
+                                                    let bgClass = "bg-indigo-50 dark:bg-indigo-950/30 border-indigo-100 dark:border-indigo-900/50"
+                                                    let textClass = "text-indigo-700 dark:text-indigo-300"
+                                                    let iconClass = "text-indigo-500 dark:text-indigo-400"
+                                                    let IconComp = Calendar
+
+                                                    if (isExpired) {
+                                                        bgClass = "bg-red-50 dark:bg-red-950/30 border-red-100 dark:border-red-900/50"
+                                                        textClass = "text-red-700 dark:text-red-300"
+                                                        iconClass = "text-red-500 dark:text-red-400"
+                                                        IconComp = AlertTriangle
+                                                    } else if (isWarning) {
+                                                        bgClass = "bg-orange-50 dark:bg-orange-950/30 border-orange-100 dark:border-orange-900/50"
+                                                        textClass = "text-orange-700 dark:text-orange-300"
+                                                        iconClass = "text-orange-500 dark:text-orange-400"
+                                                        IconComp = AlertTriangle
+                                                    }
+
+                                                    return (
+                                                        <div className={`flex items-center gap-2 w-fit px-2.5 py-1.5 rounded-lg border ${bgClass}`}>
+                                                            <IconComp size={14} className={iconClass} />
+                                                            <span className={`text-xs font-medium ${textClass}`}>
+                                                                {pDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                                {isExpired && " (Vencida)"}
+                                                                {isWarning && " (Próx.)"}
+                                                            </span>
+                                                        </div>
+                                                    )
+                                                })() : (
                                                     <span className="text-slate-400 dark:text-slate-600">-</span>
                                                 )}
                                             </td>
@@ -212,11 +346,48 @@ export default function HistoryPage() {
                                                         : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'}
                                             `}>
                                                     {batch.status === 'SENT' ? <CheckCircle size={12} /> : <Clock size={12} />}
-                                                    {batch.status}
+                                                    {batch.status === 'SENT' ? 'DESCARGADO' : (batch.status === 'GENERATED' ? 'GENERADO' : batch.status)}
                                                 </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <button
+                                                    onClick={() => handleToggleUpload(batch.id)}
+                                                    className={`
+                                                        relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/50
+                                                        ${batch.uploaded_to_bank ? 'bg-green-500' : 'bg-slate-200 dark:bg-slate-700'}
+                                                    `}
+                                                    title={batch.uploaded_to_bank ? "Subido al banco" : "Pendiente de subir"}
+                                                >
+                                                    <span
+                                                        className={`
+                                                            inline-block h-4 w-4 transform rounded-full bg-white transition-transform
+                                                            ${batch.uploaded_to_bank ? 'translate-x-6' : 'translate-x-1'}
+                                                        `}
+                                                    />
+                                                </button>
+                                                {!batch.uploaded_to_bank && (
+                                                    <div className="mt-1 flex items-center justify-center gap-1 text-xs text-red-500 font-medium animate-pulse">
+                                                        <AlertTriangle size={12} />
+                                                        <span>Pendiente</span>
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={() => handleViewBatch(batch.id)}
+                                                        className="text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                                        title="Ver Detalles"
+                                                    >
+                                                        <Eye size={18} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handlePrint(batch.id)}
+                                                        className="text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 p-2 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                                                        title="Imprimir Orden"
+                                                    >
+                                                        <FileText size={18} />
+                                                    </button>
                                                     <button
                                                         onClick={() => handleDownload(batch.id)}
                                                         className="text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
@@ -331,6 +502,16 @@ export default function HistoryPage() {
                 description="¿Estás seguro de que deseas eliminar esta remesa? Esta acción no se puede deshacer y se perderán todos los datos asociados."
                 confirmText="Eliminar"
                 isDestructive={true}
+            />
+
+            <BatchDetailsModal
+                isOpen={isDetailsOpen}
+                onClose={() => {
+                    setIsDetailsOpen(false)
+                    setSelectedBatchId(null)
+                }}
+                batch={selectedBatch}
+                loading={loadingSelectedBatch}
             />
         </div>
     )
