@@ -266,7 +266,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">{label}</p>
                 <div className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-purple-500 inline-block"></span>
-                    {payload[0].value}
+                    {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(payload[0].value)}
                 </div>
             </div>
         )

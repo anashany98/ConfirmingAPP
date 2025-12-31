@@ -217,11 +217,15 @@ def process_flat_table(content: bytes, db: Session = None):
     mapping = {
         'INVOICE_NUMBER': ['FACTURA', 'NUMERO', 'NUM_FACTURA', 'REF', 'INVOICE'],
         'AMOUNT': ['IMPORTE', 'TOTAL', 'AMOUNT', 'PRECIO'],
-        'PAYMENT_DATE': ['FECHA_PAGO', 'VENCIMIENTO', 'FECHA', 'DATE'],
+        'PAYMENT_DATE': ['FECHA_PAGO', 'VENCIMIENTO', 'FECHA', 'DATE', 'FECHA DE VENCIMIENTO'],
         'CIF': ['CIF', 'NIF'],
         'NAME': ['NOMBRE', 'PROVEEDOR', 'NAME'],
         'IBAN': ['IBAN', 'CUENTA', 'ACCOUNT'],
-        'EMAIL': ['EMAIL', 'CORREO', 'MAIL', 'E-MAIL']
+        'EMAIL': ['EMAIL', 'CORREO', 'MAIL', 'E-MAIL'],
+        'ADDRESS': ['DIRECCION', 'ADDRESS', 'DOMICILIO'],
+        'CITY': ['POBLACION', 'CIUDAD', 'CITY', 'MUNICIPIO'],
+        'ZIP': ['CP', 'ZIP', 'CODIGO_POSTAL', 'POSTAL'],
+        'COUNTRY': ['PAIS', 'COUNTRY', 'NACION']
     }
     
     final_col_map = {}
@@ -242,11 +246,23 @@ def process_flat_table(content: bytes, db: Session = None):
             "nombre": str(row.get(final_col_map.get('NAME'), '')),
             "cuenta": str(row.get(final_col_map.get('IBAN'), '')),
             "email": str(row.get(final_col_map.get('EMAIL'), '')),
+            "direccion": str(row.get(final_col_map.get('ADDRESS'), '')),
+            "poblacion": str(row.get(final_col_map.get('CITY'), '')),
+            "cp": str(row.get(final_col_map.get('ZIP'), '')),
+            "pais": str(row.get(final_col_map.get('COUNTRY'), 'ES')),
             "status": "VALID"
         }
         
-        # Clean email if 'nan'
-        if inv['email'] == 'nan': inv['email'] = ""
+        # Clean 'nan' values
+        for k, v in inv.items():
+            if v == 'nan': inv[k] = ""
+            
+        # Filter Dummy Emails
+        if inv['email'].upper().strip() in ['TEST@TEST.COM', 'EMAIL@EMAIL.COM', 'EXAMPLE@EXAMPLE.COM']:
+            inv['email'] = ""
+
+        if inv['pais'].upper() in ['ESPAÑA', 'SPAIN', 'ESP']:
+            inv['pais'] = 'ES'
 
         # Handle Amount conversion
         try:
@@ -272,12 +288,16 @@ def process_flat_table(content: bytes, db: Session = None):
         if db and inv['cif']:
             provider = db.query(Provider).filter(Provider.cif == inv['cif']).first()
             if provider:
-                if not inv['nombre'] or inv['nombre'] == 'nan': inv['nombre'] = provider.name
+                if not inv['nombre']: inv['nombre'] = provider.name
                 
-                # Enrichment and Mismatch Logic
-                # Only overwrite if empty
-                if not inv['email']:
-                    inv['email'] = provider.email or ""
+                # Enrichment: Overwrite only if empty
+                if not inv['email']: inv['email'] = provider.email or ""
+                if not inv['direccion']: inv['direccion'] = provider.address or ""
+                if not inv['poblacion']: inv['poblacion'] = provider.city or ""
+                if not inv['cp']: inv['cp'] = provider.zip_code or ""
+                if not inv['pais'] or inv['pais'] == 'ES': # Prefer Provider country if we have default ES
+                     if provider.country: inv['pais'] = provider.country
+
                 inv['db_iban'] = provider.iban or ""
                 inv['iban_mismatch'] = False
                 

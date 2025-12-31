@@ -41,6 +41,10 @@ export default function UploadPage() {
     const [ibanMismatchQueue, setIbanMismatchQueue] = useState<Invoice[]>([])
     const [showIbanMismatchModal, setShowIbanMismatchModal] = useState(false)
 
+    // Missing Info Handling
+    const [missingInfoQueue, setMissingInfoQueue] = useState<Invoice[]>([])
+    const [showMissingInfoModal, setShowMissingInfoModal] = useState(false)
+
     // Batch Settings
     const [batchDueDate, setBatchDueDate] = useState("")
 
@@ -83,19 +87,43 @@ export default function UploadPage() {
         }
 
         // 2. Missing Emails
-        // Filter for valid CIF but missing email
+        // MERGED into Step 4 (Missing Info)
+        /*
         const missingEmails = currentInvoices.filter((inv: Invoice) => (!inv.email || inv.email.trim() === "") && inv.cif)
         if (!skippedEmailCheck && missingEmails.length > 0) {
             setMissingEmailQueue(missingEmails)
             setShowMissingEmailModal(true)
             return
         }
+        */
 
         // 3. IBAN Mismatch
         const ibanMismatches = currentInvoices.filter((inv: Invoice) => inv.iban_mismatch)
         if (ibanMismatches.length > 0) {
             setIbanMismatchQueue(ibanMismatches)
             setShowIbanMismatchModal(true)
+            return
+        }
+
+        // 4. Missing Info (Address, City, Zip, Country, Email, IBAN, Phone)
+        // Check for ANY missing field that we want to enforce for the provider DB
+        const missingInfo = currentInvoices.filter((inv: Invoice) => {
+            const hasName = inv.nombre && inv.nombre.trim() !== ""
+            const hasAddress = inv.direccion && inv.direccion.trim() !== ""
+            const hasCity = inv.poblacion && inv.poblacion.trim() !== ""
+            const hasZip = inv.cp && inv.cp.trim() !== ""
+            const hasCountry = inv.pais && inv.pais.trim() !== ""
+            const hasEmail = inv.email && inv.email.trim() !== ""
+            const hasIban = inv.cuenta && inv.cuenta.trim() !== ""
+            const hasPhone = inv.phone && inv.phone.trim() !== "" // New field
+
+            // If any check fails, add to queue
+            return (!hasName || !hasAddress || !hasCity || !hasZip || !hasCountry || !hasEmail || !hasIban || !hasPhone) && inv.cif
+        })
+
+        if (missingInfo.length > 0) {
+            setMissingInfoQueue(missingInfo)
+            setShowMissingInfoModal(true)
             return
         }
 
@@ -484,7 +512,7 @@ export default function UploadPage() {
                                         ...inv,
                                         cuenta: resolvedMap[inv.id],
                                         iban_mismatch: false, // resolved
-                                        validation_message: inv.validation_message.replace('IBAN Inválido', '') // Basic cleanup if needed
+                                        validation_message: (inv.validation_message || '').replace('IBAN Inválido', '') // Basic cleanup if needed
                                     }
                                 }
                                 return inv
@@ -501,7 +529,26 @@ export default function UploadPage() {
                     />
                 )
             }
-        </div >
+            {
+                showMissingInfoModal && (
+                    <MissingInfoModal
+                        invoices={missingInfoQueue}
+                        onResolve={(updates) => {
+                            const nextInvoices = invoices.map(inv => {
+                                const update = updates.find(u => u.id === inv.id)
+                                if (update) {
+                                    return { ...inv, ...update }
+                                }
+                                return inv
+                            })
+                            setInvoices(nextInvoices)
+                            setShowMissingInfoModal(false)
+                            runValidationSequence(nextInvoices)
+                        }}
+                    />
+                )
+            }
+        </div>
     )
 }
 
@@ -783,43 +830,63 @@ function MissingEmailModal({ invoices, onResolve }: { invoices: Invoice[], onRes
 }
 
 function IbanMismatchModal({ invoices, onResolve }: { invoices: Invoice[], onResolve: (map: Record<number, string>, updates: { cif: string, iban: string }[]) => void }) {
-    // Stores the selected IBAN for each invoice
-    const [selections, setSelections] = useState<Record<number, string>>({})
-    const [customInputs, setCustomInputs] = useState<Record<number, string>>({})
-    const [addingNew, setAddingNew] = useState<Record<number, boolean>>({})
+    // Group invoices by CIF + File IBAN
+    // Key: `${inv.cif}-${inv.cuenta}`
+    // Value: { representative: Invoice, ids: number[] }
+    const groups: Record<string, { representative: Invoice, ids: number[] }> = {}
+
+    invoices.forEach(inv => {
+        const key = `${inv.cif}-${inv.cuenta}`
+        if (!groups[key]) {
+            groups[key] = { representative: inv, ids: [] }
+        }
+        groups[key].ids.push(inv.id)
+    })
+
+    const groupKeys = Object.keys(groups)
+
+    // Stores the selected IBAN for each GROUP KEY
+    const [selections, setSelections] = useState<Record<string, string>>({})
+    const [customInputs, setCustomInputs] = useState<Record<string, string>>({})
+    const [addingNew, setAddingNew] = useState<Record<string, boolean>>({})
 
     const handleConfirm = () => {
         const updates: { cif: string, iban: string }[] = []
-        const finalMap: Record<number, string> = {}
+        const finalMap: Record<number, string> = {} // Map InvoiceID -> IBAN
 
-        for (const inv of invoices) {
-            let selected = selections[inv.id]
+        for (const key of groupKeys) {
+            const group = groups[key]
+            let selected = selections[key]
 
             // If custom is active, take that value
-            if (addingNew[inv.id]) {
-                const customVal = customInputs[inv.id]
+            if (addingNew[key]) {
+                const customVal = customInputs[key]
                 if (!customVal || customVal.length < 10) { // Basic sanity check
-                    alert(`Introduce un IBAN válido para ${inv.nombre}`)
+                    alert(`Introduce un IBAN válido para ${group.representative.nombre}`)
                     return
                 }
                 selected = customVal
             }
 
             if (!selected) {
-                alert(`Selecciona una cuenta para ${inv.nombre}`)
+                alert(`Selecciona una cuenta para ${group.representative.nombre}`)
                 return
             }
 
-            finalMap[inv.id] = selected
+            // Apply to ALL invoices in this group
+            for (const id of group.ids) {
+                finalMap[id] = selected
+            }
 
-            // Update logic:
+            // Update logic (only once per group):
             // If custom NEW: Always update DB.
             // If FILE selected: Update DB (since it differs from DB).
             // If DB selected: Do NOT update.
-            const isDbOriginal = selected === inv.db_iban
-
+            const isDbOriginal = selected === group.representative.db_iban
             if (!isDbOriginal) {
-                updates.push({ cif: inv.cif, iban: selected })
+                // Push only one update per unique Provider/IBAN decision
+                // Note: If multiple groups exist for same provider (e.g. 2 different file IBANs for same CIF), this still works correctly.
+                updates.push({ cif: group.representative.cif, iban: selected })
             }
         }
         onResolve(finalMap, updates)
@@ -834,99 +901,318 @@ function IbanMismatchModal({ invoices, onResolve }: { invoices: Invoice[], onRes
                         Conflicto de Cuentas Bancarias (IBAN)
                     </h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        El IBAN del archivo no coincide con el de la base de datos para estos proveedores.
+                        El IBAN del archivo no coincide con el de la base de datos.
                     </p>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                    {invoices.map(inv => (
-                        <div key={inv.id} className="bg-slate-50 dark:bg-slate-950/50 p-4 rounded-lg border border-slate-100 dark:border-slate-800">
-                            <div className="mb-3">
-                                <h4 className="font-bold text-slate-900 dark:text-slate-100">{inv.nombre}</h4>
-                                <p className="text-xs font-mono text-slate-500">CIF: {inv.cif}</p>
-                            </div>
+                    {groupKeys.map(key => {
+                        const group = groups[key]
+                        const inv = group.representative
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                {/* Option 1: From File */}
-                                <label className={`
-                                    border p-3 rounded cursor-pointer transition-all
-                                    ${selections[inv.id] === inv.cuenta && !addingNew[inv.id] ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/20' : 'border-slate-200 dark:border-slate-700'}
-                                `}>
-                                    <div className="flex items-center gap-2 mb-2">
+                        return (
+                            <div key={key} className="bg-slate-50 dark:bg-slate-950/50 p-4 rounded-lg border border-slate-100 dark:border-slate-800">
+                                <div className="mb-3 flex justify-between items-start">
+                                    <div>
+                                        <h4 className="font-bold text-slate-900 dark:text-slate-100">{inv.nombre}</h4>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <p className="text-xs font-mono text-slate-500">CIF: {inv.cif}</p>
+                                            {group.ids.length > 1 && (
+                                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                                                    Afecta a {group.ids.length} facturas
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    {/* Option 1: From File */}
+                                    <label className={`
+                                        border p-3 rounded cursor-pointer transition-all
+                                        ${selections[key] === inv.cuenta && !addingNew[key] ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/20' : 'border-slate-200 dark:border-slate-700'}
+                                    `}>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <input
+                                                type="radio"
+                                                name={`iban-${key}`}
+                                                value={inv.cuenta}
+                                                checked={selections[key] === inv.cuenta && !addingNew[key]}
+                                                onChange={() => {
+                                                    setAddingNew(prev => ({ ...prev, [key]: false }))
+                                                    setSelections(prev => ({ ...prev, [key]: inv.cuenta }))
+                                                }}
+                                                className="text-orange-600"
+                                            />
+                                            <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">Usar Factura (Se actualizará BD)</span>
+                                        </div>
+                                        <p className="font-mono text-xs text-slate-600 dark:text-slate-400 break-all">{inv.cuenta}</p>
+                                    </label>
+
+                                    {/* Option 2: From DB */}
+                                    <label className={`
+                                        border p-3 rounded cursor-pointer transition-all
+                                        ${selections[key] === (inv.db_iban || "") && !addingNew[key] ? 'border-green-500 bg-green-50 dark:bg-green-950/20' : 'border-slate-200 dark:border-slate-700'}
+                                    `}>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <input
+                                                type="radio"
+                                                name={`iban-${key}`}
+                                                value={inv.db_iban || ""}
+                                                checked={selections[key] === (inv.db_iban || "") && !addingNew[key]}
+                                                onChange={() => {
+                                                    setAddingNew(prev => ({ ...prev, [key]: false }))
+                                                    setSelections(prev => ({ ...prev, [key]: inv.db_iban || "" }))
+                                                }}
+                                                className="text-green-600"
+                                            />
+                                            <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">Usar Base de Datos</span>
+                                        </div>
+                                        <p className="font-mono text-xs text-slate-600 dark:text-slate-400 break-all">{inv.db_iban}</p>
+                                    </label>
+                                </div>
+
+                                {/* Option 3: Custom */}
+                                <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                                    <label className="flex items-center gap-2 cursor-pointer mb-2">
                                         <input
                                             type="radio"
-                                            name={`iban-${inv.id}`}
-                                            value={inv.cuenta}
-                                            checked={selections[inv.id] === inv.cuenta && !addingNew[inv.id]}
+                                            name={`iban-${key}`}
+                                            checked={!!addingNew[key]}
                                             onChange={() => {
-                                                setAddingNew(prev => ({ ...prev, [inv.id]: false }))
-                                                setSelections(prev => ({ ...prev, [inv.id]: inv.cuenta }))
+                                                setAddingNew(prev => ({ ...prev, [key]: true }))
+                                                // clear other selections visually if needed
                                             }}
-                                            className="text-orange-600"
+                                            className="text-blue-600"
                                         />
-                                        <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">Usar Factura (Se actualizará BD)</span>
-                                    </div>
-                                    <p className="font-mono text-xs text-slate-600 dark:text-slate-400 break-all">{inv.cuenta}</p>
-                                </label>
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                                            <Plus size={14} /> Introducir Otro IBAN (Se actualizará BD)
+                                        </span>
+                                    </label>
 
-                                {/* Option 2: From DB */}
-                                <label className={`
-                                    border p-3 rounded cursor-pointer transition-all
-                                    ${selections[inv.id] === (inv.db_iban || "") && !addingNew[inv.id] ? 'border-green-500 bg-green-50 dark:bg-green-950/20' : 'border-slate-200 dark:border-slate-700'}
-                                `}>
-                                    <div className="flex items-center gap-2 mb-2">
+                                    {addingNew[key] && (
                                         <input
-                                            type="radio"
-                                            name={`iban-${inv.id}`}
-                                            value={inv.db_iban || ""}
-                                            checked={selections[inv.id] === (inv.db_iban || "") && !addingNew[inv.id]}
-                                            onChange={() => {
-                                                setAddingNew(prev => ({ ...prev, [inv.id]: false }))
-                                                setSelections(prev => ({ ...prev, [inv.id]: inv.db_iban || "" }))
-                                            }}
-                                            className="text-green-600"
+                                            type="text"
+                                            placeholder="ES00 0000 0000 0000 0000 0000"
+                                            className="w-full p-2 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono focus:ring-2 focus:ring-blue-500 outline-none"
+                                            value={customInputs[key] || ""}
+                                            onChange={e => setCustomInputs(prev => ({ ...prev, [key]: e.target.value }))}
                                         />
-                                        <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">Usar Base de Datos</span>
-                                    </div>
-                                    <p className="font-mono text-xs text-slate-600 dark:text-slate-400 break-all">{inv.db_iban}</p>
-                                </label>
+                                    )}
+                                </div>
                             </div>
-
-                            {/* Option 3: Custom */}
-                            <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-                                <label className="flex items-center gap-2 cursor-pointer mb-2">
-                                    <input
-                                        type="radio"
-                                        name={`iban-${inv.id}`}
-                                        checked={!!addingNew[inv.id]}
-                                        onChange={() => {
-                                            setAddingNew(prev => ({ ...prev, [inv.id]: true }))
-                                            // clear other selections visually if needed
-                                        }}
-                                        className="text-blue-600"
-                                    />
-                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                                        <Plus size={14} /> Introducir Otro IBAN (Se actualizará BD)
-                                    </span>
-                                </label>
-
-                                {addingNew[inv.id] && (
-                                    <input
-                                        type="text"
-                                        placeholder="ES00 0000 0000 0000 0000 0000"
-                                        className="w-full p-2 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono focus:ring-2 focus:ring-blue-500 outline-none"
-                                        value={customInputs[inv.id] || ""}
-                                        onChange={e => setCustomInputs(prev => ({ ...prev, [inv.id]: e.target.value }))}
-                                    />
-                                )}
-                            </div>
-                        </div>
-                    ))}
+                        )
+                    })}
                 </div>
 
                 <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/50 flex justify-end">
                     <button className="bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-6 py-2 rounded-lg font-medium" onClick={handleConfirm}>
                         Confirmar Selección
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function MissingInfoModal({ invoices, onResolve }: { invoices: Invoice[], onResolve: (updates: any[]) => void }) {
+    // Group by CIF
+    const groups: Record<string, { representative: Invoice, ids: number[] }> = {}
+    invoices.forEach(inv => {
+        if (!groups[inv.cif]) {
+            groups[inv.cif] = { representative: inv, ids: [] }
+        }
+        groups[inv.cif].ids.push(inv.id)
+    })
+    const groupKeys = Object.keys(groups)
+
+    // Form State: Key = CIF
+    const [forms, setForms] = useState<Record<string, { nombre: string, direccion: string, poblacion: string, cp: string, pais: string, email: string, cuenta: string, phone: string }>>({})
+
+    // Init state
+    useState(() => {
+        const initial: any = {}
+        groupKeys.forEach(cif => {
+            const rep = groups[cif].representative
+            initial[cif] = {
+                nombre: rep.nombre || "",
+                direccion: rep.direccion || "",
+                poblacion: rep.poblacion || "",
+                cp: rep.cp || "",
+                pais: rep.pais || "ES",
+                email: rep.email || "",
+                cuenta: rep.cuenta || "",
+                phone: rep.phone || ""
+            }
+        })
+        setForms(initial)
+    })
+
+    const handleChange = (cif: string, field: string, value: string) => {
+        setForms(prev => ({
+            ...prev,
+            [cif]: { ...prev[cif], [field]: value }
+        }))
+    }
+
+    const handleConfirm = () => {
+        // Validation with specific messages
+        for (const cif of groupKeys) {
+            const form = forms[cif]
+            if (!form.nombre) { alert(`Falta Nombre Fiscal para ${cif}`); return; }
+            if (!form.direccion) { alert(`Falta Dirección para ${cif}`); return; }
+            if (!form.poblacion) { alert(`Falta Población para ${cif}`); return; }
+            if (!form.cp) { alert(`Falta Código Postal para ${cif}`); return; }
+            if (!form.pais) { alert(`Falta País para ${cif}`); return; }
+            if (!form.email) { alert(`Falta Email para ${cif}`); return; }
+            if (!form.cuenta) { alert(`Falta Cuenta IBAN para ${cif}`); return; }
+            if (!form.phone) { alert(`Falta Teléfono para ${cif}`); return; }
+        }
+
+        const updates: any[] = []
+
+        groupKeys.forEach(cif => {
+            const form = forms[cif]
+            const group = groups[cif]
+
+            // Apply to all IDs in group
+            group.ids.forEach(id => {
+                updates.push({
+                    id,
+                    ...form
+                })
+            })
+        })
+
+        onResolve(updates)
+    }
+
+    return (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-7xl max-h-[90vh] flex flex-col border border-slate-200 dark:border-slate-800">
+                <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <Edit2 className="text-blue-500" />
+                        Completar Datos del Proveedor
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        Faltan datos obligatorios para registrar estos proveedores. Por favor, rellénalos todos.
+                    </p>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {groupKeys.map(cif => {
+                        const group = groups[cif]
+                        const rep = group.representative
+                        const form = forms[cif] || { nombre: '', direccion: '', poblacion: '', cp: '', pais: 'ES', email: '', cuenta: '', phone: '' }
+
+                        return (
+                            <div key={cif} className="bg-slate-50 dark:bg-slate-950/50 p-4 rounded-lg border border-slate-100 dark:border-slate-800">
+                                <div className="mb-4 flex flex-col gap-1">
+                                    <h4 className="font-bold text-lg text-slate-900 dark:text-slate-100">{rep.nombre || 'Nombre Desconocido'}</h4>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-bold text-slate-500 uppercase">CIF</span>
+                                        <span className="text-xs font-mono bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-700 dark:text-slate-300">{cif}</span>
+                                        {group.ids.length > 1 && (
+                                            <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">Afecta a {group.ids.length} facturas</span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
+                                    <div className="col-span-1 md:col-span-2">
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1">Nombre Fiscal *</label>
+                                        <input
+                                            type="text"
+                                            value={form.nombre}
+                                            onChange={e => handleChange(cif, 'nombre', e.target.value)}
+                                            className="w-full p-2 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800"
+                                            placeholder="Nombre del Proveedor"
+                                        />
+                                    </div>
+                                    <div className="col-span-1 md:col-span-2">
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1">Dirección *</label>
+                                        <input
+                                            type="text"
+                                            value={form.direccion}
+                                            onChange={e => handleChange(cif, 'direccion', e.target.value)}
+                                            className="w-full p-2 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800"
+                                            placeholder="Calle..."
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1">CP *</label>
+                                        <input
+                                            type="text"
+                                            value={form.cp}
+                                            onChange={e => handleChange(cif, 'cp', e.target.value)}
+                                            className="w-full p-2 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800"
+                                            placeholder="28000"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1">Población *</label>
+                                        <input
+                                            type="text"
+                                            value={form.poblacion}
+                                            onChange={e => handleChange(cif, 'poblacion', e.target.value)}
+                                            className="w-full p-2 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800"
+                                            placeholder="Ciudad"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1">País *</label>
+                                        <input
+                                            type="text"
+                                            value={form.pais}
+                                            onChange={e => handleChange(cif, 'pais', e.target.value)}
+                                            className="w-full p-2 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800"
+                                            placeholder="ES"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1">Teléfono *</label>
+                                        <input
+                                            type="text"
+                                            value={form.phone}
+                                            onChange={e => handleChange(cif, 'phone', e.target.value)}
+                                            className="w-full p-2 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800"
+                                            placeholder="+34..."
+                                        />
+                                    </div>
+                                    <div className="col-span-1 md:col-span-2">
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1">Email *</label>
+                                        <input
+                                            type="email"
+                                            value={form.email}
+                                            onChange={e => handleChange(cif, 'email', e.target.value)}
+                                            className="w-full p-2 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800"
+                                            placeholder="correo@ejemplo.com"
+                                        />
+                                    </div>
+                                    <div className="col-span-1 md:col-span-2">
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1">IBAN *</label>
+                                        <input
+                                            type="text"
+                                            value={form.cuenta}
+                                            onChange={e => handleChange(cif, 'cuenta', e.target.value)}
+                                            className="w-full p-2 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 font-mono"
+                                            placeholder="ES..."
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+
+                <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/50 flex justify-end">
+                    <button
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-blue-500/20"
+                        onClick={handleConfirm}
+                    >
+                        Guardar Datos y Continuar
                     </button>
                 </div>
             </div>

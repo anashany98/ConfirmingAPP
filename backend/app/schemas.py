@@ -21,6 +21,7 @@ class InvoiceBase(BaseModel):
     factura: Optional[str] = None
     fecha_vencimiento: Optional[datetime] = None
     fecha_aplazamiento: Optional[datetime] = None
+    phone: Optional[str] = None
 
 class InvoiceCreate(InvoiceBase):
     pass

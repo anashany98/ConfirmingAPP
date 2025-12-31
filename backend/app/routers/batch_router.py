@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 from ..database import get_db
-from ..models import Batch, Invoice, BatchStatus
+from ..models import Batch, Invoice, BatchStatus, Provider
 from ..schemas import Batch as BatchSchema, InvoiceCreate, BatchBase
 from ..services.export_service import generate_bankinter_excel
 from datetime import datetime, date
@@ -130,6 +130,9 @@ def create_batch(batch_in: BatchInput, db: Session = Depends(get_db)):
         # Convert InvoiceCreate to DB model
         data = inv_data.dict()
         
+        # Extract phone for provider sync (not in Invoice model)
+        provider_phone = data.pop('phone', None)
+        
         # Override due date if global provided
         if global_due_date:
             data['fecha_vencimiento'] = global_due_date
@@ -141,6 +144,33 @@ def create_batch(batch_in: BatchInput, db: Session = Depends(get_db)):
             status="VALID" # Force valid or trust frontend? Trust frontend data but override status if needed
         )
         db.add(db_inv)
+
+        # Sync Provider Logic
+        if data.get('cif'):
+            provider = db.query(Provider).filter(Provider.cif == data['cif']).first()
+            if not provider:
+                # Create New Provider
+                new_provider = Provider(
+                    cif=data['cif'],
+                    name=data['nombre'],
+                    email=data['email'],
+                    address=data.get('direccion'),
+                    city=data.get('poblacion'),
+                    zip_code=data.get('cp'),
+                    country=data.get('pais'),
+                    phone=provider_phone,
+                    iban=data.get('cuenta')
+                )
+                db.add(new_provider)
+            else:
+                # Fill missing data
+                if not provider.email and data.get('email'): provider.email = data['email']
+                if not provider.address and data.get('direccion'): provider.address = data['direccion']
+                if not provider.city and data.get('poblacion'): provider.city = data['poblacion']
+                if not provider.zip_code and data.get('cp'): provider.zip_code = data['cp']
+                if not provider.country and data.get('pais'): provider.country = data['pais']
+                if not provider.iban and data.get('cuenta'): provider.iban = data['cuenta']
+                if not provider.phone and provider_phone: provider.phone = provider_phone
     
     db.commit()
     db.refresh(db_batch)
@@ -155,8 +185,6 @@ def list_batches(
     search: Optional[str] = None,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
-    payment_date_start: Optional[date] = None,
-    payment_date_end: Optional[date] = None,
     db: Session = Depends(get_db)
 ):
     query = db.query(Batch)
@@ -174,12 +202,6 @@ def list_batches(
     
     if end_date:
         query = query.filter(func.date(Batch.created_at) <= end_date)
-
-    if payment_date_start:
-        query = query.filter(func.date(Batch.payment_date) >= payment_date_start)
-    
-    if payment_date_end:
-        query = query.filter(func.date(Batch.payment_date) <= payment_date_end)
 
     total = query.count()
     batches = query.order_by(Batch.created_at.desc()).offset(skip).limit(limit).all()
