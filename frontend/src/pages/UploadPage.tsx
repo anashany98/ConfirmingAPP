@@ -31,11 +31,11 @@ export default function UploadPage() {
     const [fileHash, setFileHash] = useState<string>("")
     const [emailResolutionQueue, setEmailResolutionQueue] = useState<Invoice[]>([])
     const [showEmailModal, setShowEmailModal] = useState(false)
-    const [skippedEmailCheck, setSkippedEmailCheck] = useState(false)
+    // const [skippedEmailCheck, setSkippedEmailCheck] = useState(false) // Removed to fix build error
 
     // Missing Email Handling
-    const [missingEmailQueue, setMissingEmailQueue] = useState<Invoice[]>([])
-    const [showMissingEmailModal, setShowMissingEmailModal] = useState(false)
+    // const [missingEmailQueue, setMissingEmailQueue] = useState<Invoice[]>([]) // Removed to fix build error
+    // const [showMissingEmailModal, setShowMissingEmailModal] = useState(false) // Removed to fix build error
 
     // IBAN Mismatch Handling
     const [ibanMismatchQueue, setIbanMismatchQueue] = useState<Invoice[]>([])
@@ -475,7 +475,7 @@ export default function UploadPage() {
                 )
             }
 
-            {
+            {/* 
                 showMissingEmailModal && (
                     <MissingEmailModal
                         invoices={missingEmailQueue}
@@ -498,7 +498,7 @@ export default function UploadPage() {
                         }}
                     />
                 )
-            }
+            */}
 
             {
                 showIbanMismatchModal && (
@@ -765,69 +765,7 @@ function EditModal({ invoice, onClose, onSave }: { invoice: Invoice, onClose: ()
     )
 }
 
-function MissingEmailModal({ invoices, onResolve }: { invoices: Invoice[], onResolve: (map: Record<number, string>, updates: { cif: string, email: string }[]) => void }) {
-    const [inputs, setInputs] = useState<Record<number, string>>({})
 
-    const handleConfirm = () => {
-        const updates: { cif: string, email: string }[] = []
-        const finalMap: Record<number, string> = {}
-
-        for (const inv of invoices) {
-            const val = inputs[inv.id]
-            // Allow empty values (Skip)
-            if (val && val.includes('@')) {
-                updates.push({ cif: inv.cif, email: val })
-                finalMap[inv.id] = val
-            }
-        }
-
-        onResolve(finalMap, updates)
-    }
-
-    return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col border border-slate-200 dark:border-slate-800">
-                <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-                    <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                        <Mail className="text-orange-600" />
-                        Faltan Correos Electrónicos
-                    </h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Los siguientes proveedores no tienen email asignado. Puedes introducirlos ahora o continuar sin ellos.
-                    </p>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                    {invoices.map(inv => (
-                        <div key={inv.id} className="bg-slate-50 dark:bg-slate-950/50 p-4 rounded-lg border border-slate-100 dark:border-slate-800">
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="font-semibold text-slate-900 dark:text-slate-100">{inv.nombre}</span>
-                                <span className="text-xs font-mono text-slate-500">{inv.cif}</span>
-                            </div>
-                            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Nuevo Correo (se guardará en BD)</label>
-                            <input
-                                type="email"
-                                placeholder="ejemplo@empresa.com"
-                                className="w-full p-2 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                                value={inputs[inv.id] || ""}
-                                onChange={e => setInputs(prev => ({ ...prev, [inv.id]: e.target.value }))}
-                            />
-                        </div>
-                    ))}
-                </div>
-
-                <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/50 flex justify-end">
-                    <button className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 font-medium" onClick={() => onResolve({}, [])}>
-                        Omitir paso
-                    </button>
-                    <button className="bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-6 py-2 rounded-lg font-medium" onClick={handleConfirm}>
-                        Guardar y Continuar
-                    </button>
-                </div>
-            </div>
-        </div>
-    )
-}
 
 function IbanMismatchModal({ invoices, onResolve }: { invoices: Invoice[], onResolve: (map: Record<number, string>, updates: { cif: string, iban: string }[]) => void }) {
     // Group invoices by CIF + File IBAN
