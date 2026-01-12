@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bankinter_backend_prod
+    restart: always
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://user:password@db:5432/confirming_db}
+    depends_on:
+      - db
+    networks:
+      - confirming_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Pass the API URL during build. 
+        # In Coolify, set VITE_API_URL in the Environment Variables section.
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+    container_name: bankinter_frontend_prod
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      # This is for the backend proxy if you were using one, but this is a static site.
+      # The important part is the build arg above.
+      - NODE_ENV=production
+    depends_on:
+      - backend
+    networks:
+      - confirming_network
+
+  db:
+    image: postgres:15-alpine
+    container_name: bankinter_db_prod
+    restart: always
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-confirming_db}
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    networks:
+      - confirming_network
+
+volumes:
+  postgres_data_prod:
+
+networks:
+  confirming_network:
+    driver: bridge
