@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
+from ..routers.auth_router import get_current_user
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
@@ -8,7 +9,11 @@ from ..schemas import Batch as BatchSchema, InvoiceCreate, BatchBase
 from ..services.export_service import generate_bankinter_excel
 from datetime import datetime, date
 
-router = APIRouter(prefix="/batches", tags=["batches"])
+router = APIRouter(
+    prefix="/batches", 
+    tags=["batches"],
+    dependencies=[Depends(get_current_user)]
+)
 
 @router.get("/stats")
 def get_dashboard_stats(db: Session = Depends(get_db)):

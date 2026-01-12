@@ -118,3 +118,10 @@ class User(UserBase):
 
     class Config:
         from_attributes = True
+
+class UserChangePassword(BaseModel):
+    old_password: str
+    new_password: str
+
+class UserResetPassword(BaseModel):
+    new_password: str

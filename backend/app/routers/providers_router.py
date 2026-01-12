@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from ..routers.auth_router import get_current_user
 from sqlalchemy.orm import Session
 from typing import List
 from ..database import get_db
@@ -7,7 +8,11 @@ from ..schemas import Provider as ProviderSchema, ProviderCreate
 import pandas as pd
 import io
 
-router = APIRouter(prefix="/providers", tags=["providers"])
+router = APIRouter(
+    prefix="/providers", 
+    tags=["providers"],
+    dependencies=[Depends(get_current_user)]
+)
 
 PROVIDER_COLUMN_MAPPING = {
     'CIF': ['N.I.F.', 'NIF', 'CIF', 'DNI', 'CODIGO FISCAL', 'N.I.F'],

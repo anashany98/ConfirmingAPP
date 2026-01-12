@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query, Response
+from ..routers.auth_router import get_current_user
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import date, datetime, timedelta
@@ -8,7 +9,11 @@ from ..database import get_db
 from ..models import Invoice
 from ..services.pdf_service import generate_monthly_report_pdf
 
-router = APIRouter(prefix="/reports", tags=["reports"])
+router = APIRouter(
+    prefix="/reports", 
+    tags=["reports"],
+    dependencies=[Depends(get_current_user)]
+)
 
 MONTH_NAMES = [
     "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",

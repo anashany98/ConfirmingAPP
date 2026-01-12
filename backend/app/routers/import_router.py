@@ -1,4 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from ..routers.auth_router import get_current_user
 from typing import List
 from sqlalchemy.orm import Session
 from ..database import get_db
@@ -6,7 +7,11 @@ from ..services.excel_service import process_excel_file
 from ..schemas import Invoice
 from ..models import Batch, ImportLog
 
-router = APIRouter(prefix="/import", tags=["import"])
+router = APIRouter(
+    prefix="/import",
+    tags=["import"],
+    dependencies=[Depends(get_current_user)]
+)
 
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...), force: bool = False, db: Session = Depends(get_db)):

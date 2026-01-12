@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from ..routers.auth_router import get_current_user
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import List, Union
@@ -6,7 +7,11 @@ from pydantic import BaseModel
 from ..database import get_db
 from ..models import Batch, Provider, Invoice
 
-router = APIRouter(prefix="/search", tags=["search"])
+router = APIRouter(
+    prefix="/search", 
+    tags=["search"],
+    dependencies=[Depends(get_current_user)]
+)
 
 class SearchResult(BaseModel):
     type: str # 'batch' | 'provider' | 'invoice'

@@ -1,10 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
+from ..routers.auth_router import get_current_user
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Settings
 from ..schemas import Settings as SettingsSchema, SettingsCreate
 
-router = APIRouter(prefix="/settings", tags=["settings"])
+router = APIRouter(
+    prefix="/settings",
+    tags=["settings"],
+    dependencies=[Depends(get_current_user)]
+)
 
 @router.get("/", response_model=SettingsSchema)
 def get_settings(db: Session = Depends(get_db)):
