@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Upload, History, FileText, Users, Calendar, Search } from 'lucide-react'
+import { LayoutDashboard, Upload, History, FileText, Users, Calendar, Search, LogOut } from 'lucide-react'
+import { useAuth } from './lib/auth'
 import { clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import CommandPalette from './components/CommandPalette'
@@ -19,6 +20,7 @@ const navItems = [
 
 export default function Layout() {
     const location = useLocation()
+    const { logout } = useAuth()
 
     return (
         <div className="flex h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200">
@@ -65,6 +67,13 @@ export default function Layout() {
                     <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 text-xs text-slate-500 dark:text-slate-400">
                         <p>v1.0.0</p>
                     </div>
+                    <button
+                        onClick={() => logout()}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 mt-2"
+                    >
+                        <LogOut size={20} />
+                        Cerrar Sesión
+                    </button>
                 </div>
             </aside>
 
