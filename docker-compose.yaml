@@ -11,41 +11,30 @@ services:
       - DATABASE_URL=${DATABASE_URL:-postgresql://user:password@db:5432/confirming_db}
     depends_on:
       - db
-    networks:
-      - confirming_network
     deploy:
       resources:
         reservations:
-          cpus: '0.1'
-          memory: 128M
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.services.bankinter-backend.loadbalancer.server.port=5055"
+          # Increased memory as 128M is too tight for Python/Pandas
+          memory: 256M
+        limits:
+          memory: 512M
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        # Pass the API URL during build. 
-        # In Coolify, set VITE_API_URL in the Environment Variables section.
         - VITE_API_URL=${VITE_API_URL:-http://localhost:5055}
     container_name: bankinter_frontend_prod
     restart: always
-    # Remove host port mapping to avoid conflicts. Coolify's proxy will handle routing to 8095.
-    # ports:
-    #   - "8095:8095"
     environment:
-      # This is for the backend proxy if you were using one, but this is a static site.
-      # The important part is the build arg above.
       - NODE_ENV=production
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.services.bankinter-frontend.loadbalancer.server.port=8095"
     depends_on:
       - backend
-    networks:
-      - confirming_network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
   db:
     image: postgres:15-alpine
@@ -57,12 +46,10 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-confirming_db}
     volumes:
       - postgres_data_prod:/var/lib/postgresql/data
-    networks:
-      - confirming_network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
 volumes:
   postgres_data_prod:
-
-networks:
-  confirming_network:
-    driver: bridge
