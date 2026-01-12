@@ -2,43 +2,55 @@ version: '3.8'
 
 services:
   backend:
-    build: ./backend
-    container_name: bankinter_backend
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bankinter_backend_prod
+    restart: always
     environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/confirming_db
+      - DATABASE_URL=${DATABASE_URL:-postgresql://user:password@db:5432/confirming_db}
     depends_on:
       - db
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - confirming_network
 
   frontend:
-    build: 
+    build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: bankinter_frontend
+      args:
+        # Pass the API URL during build. 
+        # In Coolify, set VITE_API_URL in the Environment Variables section.
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+    container_name: bankinter_frontend_prod
+    restart: always
     ports:
-      - "8090:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - "8080:8080"
     environment:
-      - VITE_API_URL=http://localhost:8000
-    command: npm run dev -- --host
+      # This is for the backend proxy if you were using one, but this is a static site.
+      # The important part is the build arg above.
+      - NODE_ENV=production
+    depends_on:
+      - backend
+    networks:
+      - confirming_network
 
   db:
     image: postgres:15-alpine
-    container_name: bankinter_db
+    container_name: bankinter_db_prod
+    restart: always
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=confirming_db
-    ports:
-      - "5432:5432"
+      - POSTGRES_USER=${POSTGRES_USER:-user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-confirming_db}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_prod:/var/lib/postgresql/data
+    networks:
+      - confirming_network
 
 volumes:
-  postgres_data:
+  postgres_data_prod:
+
+networks:
+  confirming_network:
+    driver: bridge
