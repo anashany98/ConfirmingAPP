@@ -18,7 +18,7 @@ services:
           memory: 512M
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.bankinter-backend.rule=Host(`${BACKEND_DOMAIN}`)"
+      - "traefik.http.routers.bankinter-backend.rule=Host(`${SERVICE_FQDN_BACKEND}`)"
       - "traefik.http.services.bankinter-backend.loadbalancer.server.port=5055"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5055/docs"]
@@ -43,7 +43,7 @@ services:
           memory: 128M
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.bankinter-frontend.rule=Host(`${FRONTEND_DOMAIN}`)"
+      - "traefik.http.routers.bankinter-frontend.rule=Host(`${SERVICE_FQDN_FRONTEND}`)"
       - "traefik.http.services.bankinter-frontend.loadbalancer.server.port=8095"
 
   db:
