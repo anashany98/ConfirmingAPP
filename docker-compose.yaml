@@ -5,7 +5,6 @@ services:
     build: 
       context: ./backend
       dockerfile: Dockerfile
-    container_name: bankinter_backend_prod
     restart: always
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgresql://user:password@db:5432/confirming_db}
@@ -14,10 +13,18 @@ services:
     deploy:
       resources:
         reservations:
-          # Increased memory as 128M is too tight for Python/Pandas
           memory: 256M
         limits:
           memory: 512M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bankinter-backend.rule=Host(`${BACKEND_DOMAIN}`)"
+      - "traefik.http.services.bankinter-backend.loadbalancer.server.port=5055"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5055/docs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   frontend:
     build:
@@ -25,7 +32,6 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_API_URL=${VITE_API_URL:-http://localhost:5055}
-    container_name: bankinter_frontend_prod
     restart: always
     environment:
       - NODE_ENV=production
@@ -35,10 +41,13 @@ services:
       resources:
         limits:
           memory: 128M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bankinter-frontend.rule=Host(`${FRONTEND_DOMAIN}`)"
+      - "traefik.http.services.bankinter-frontend.loadbalancer.server.port=8095"
 
   db:
     image: postgres:15-alpine
-    container_name: bankinter_db_prod
     restart: always
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-user}
