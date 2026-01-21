@@ -19,6 +19,8 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=Host(`api-confirming.egeadev.cloud`)"
       - "traefik.http.services.backend.loadbalancer.server.port=5055"
+    networks:
+      - coolify
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5055/docs"]
       interval: 30s
@@ -44,4 +46,10 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=Host(`confirming.egeadev.cloud`)"
       - "traefik.http.services.bankinter-frontend.loadbalancer.server.port=8095"
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true
 
