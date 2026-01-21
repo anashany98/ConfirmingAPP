@@ -8,8 +8,7 @@ services:
     restart: always
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgresql://user:password@db:5432/confirming_db}
-    depends_on:
-      - db
+
     deploy:
       resources:
         reservations:
@@ -46,19 +45,3 @@ services:
       - "traefik.http.routers.frontend.rule=Host(`confirming.egeadev.cloud`)"
       - "traefik.http.services.bankinter-frontend.loadbalancer.server.port=8095"
 
-  db:
-    image: postgres:15-alpine
-    restart: always
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER:-user}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
-      - POSTGRES_DB=${POSTGRES_DB:-confirming_db}
-    volumes:
-      - postgres_data_prod:/var/lib/postgresql/data
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-
-volumes:
-  postgres_data_prod:
