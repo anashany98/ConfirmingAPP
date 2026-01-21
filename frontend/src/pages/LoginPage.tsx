@@ -58,7 +58,7 @@ export default function LoginPage() {
                         Confirming<span className="text-orange-500">APP</span>
                     </h2>
                     <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                        Inicia sesión para gestionar tus remesas bankinter
+                        Inicia sesión para gestionar tus remesas bancarias
                     </p>
                 </div>
 

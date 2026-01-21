@@ -1,6 +1,5 @@
 import markdown
 from xhtml2pdf import pisa
-import os
 import re
 from pathlib import Path
 import sys
@@ -41,7 +40,7 @@ def image_to_base64(path_str):
 def convert_md_to_pdf():
     print(f"Reading from: {MANUAL_SRC}")
     if not MANUAL_SRC.exists():
-        print(f"Error: Manual not found")
+        print("Error: Manual not found")
         sys.exit(1)
 
     with open(MANUAL_SRC, 'r', encoding='utf-8') as f:

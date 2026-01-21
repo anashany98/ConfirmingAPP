@@ -1,10 +1,10 @@
 from app.database import SessionLocal
-from app.models import Batch, Invoice
+from app.models import Batch
 
 db = SessionLocal()
 batches = db.query(Batch).order_by(Batch.id.desc()).limit(5).all()
 
-print(f"Checking last 5 batches...")
+print("Checking last 5 batches...")
 for batch in batches:
     payment_date = batch.payment_date
     print(f"\nBatch ID: {batch.id}, Name: {batch.name}")

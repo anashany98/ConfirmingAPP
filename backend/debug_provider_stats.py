@@ -1,5 +1,5 @@
 from app.database import SessionLocal
-from app.models import Invoice, Provider
+from app.models import Invoice
 from sqlalchemy import func
 
 db = SessionLocal()

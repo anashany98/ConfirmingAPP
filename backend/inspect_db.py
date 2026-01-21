@@ -1,5 +1,5 @@
 from app.database import SessionLocal
-from app.models import Batch, Invoice
+from app.models import Batch
 
 db = SessionLocal()
 batch = db.query(Batch).order_by(Batch.id.desc()).first()

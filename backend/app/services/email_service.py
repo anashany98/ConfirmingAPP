@@ -53,10 +53,10 @@ Departamento Financiero
                 raise e
         else:
             # Simulation Mode
-            print(f"--- [EMAIL SIMULATION] ---")
+            print("--- [EMAIL SIMULATION] ---")
             print(f"TO: {email_to}")
             print(f"SUBJECT: {subject}")
-            print(f"SMTP Configured: No (using simulation)")
+            print("SMTP Configured: No (using simulation)")
             logger.info(f"Simulated email sent to {email_to}")
             return True
 

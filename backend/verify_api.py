@@ -1,5 +1,4 @@
 import requests
-import json
 import os
 
 API_URL = "http://localhost:8000/import/upload"

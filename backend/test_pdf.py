@@ -1,5 +1,4 @@
 from app.services.pdf_service import generate_monthly_report_pdf
-import io
 
 stats = {
     "month": "Diciembre",
@@ -25,7 +24,7 @@ stats['weekly_breakdown'] = []
 try:
     print("Generating Zero Weeks PDF...")
     pdf_bytes = generate_monthly_report_pdf(stats)
-    print(f"Zero Weeks PDF Generated successfully.")
+    print("Zero Weeks PDF Generated successfully.")
 except Exception as e:
     print(f"FAILED Zero Weeks: {e}")
     traceback.print_exc()

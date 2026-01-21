@@ -69,7 +69,7 @@ export default function SettingsPage() {
             queryClient.invalidateQueries({ queryKey: ['settings'] })
             alert('Configuración guardada correctamente')
         },
-        onError: (err: any) => {
+        onError: (_err: any) => {
             alert('Error guardando configuración')
         }
     })

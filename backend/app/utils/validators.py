@@ -1,4 +1,3 @@
-import re
 
 def validate_iban(iban: str) -> bool:
     """

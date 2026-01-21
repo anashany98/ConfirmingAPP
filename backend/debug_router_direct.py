@@ -10,6 +10,6 @@ try:
     response = get_monthly_pdf(month=12, year=2025, db=db)
     print("Success!")
     print(f"Response: {response}")
-except Exception as e:
+except Exception:
     print("CRASHED:")
     traceback.print_exc()

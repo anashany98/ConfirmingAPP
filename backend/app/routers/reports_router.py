@@ -1,10 +1,8 @@
 from fastapi import APIRouter, Depends, Query, Response
 from ..routers.auth_router import get_current_user
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from datetime import date, datetime, timedelta
 import calendar
-from typing import Optional
 from ..database import get_db
 from ..models import Invoice
 from ..services.pdf_service import generate_monthly_report_pdf
@@ -113,7 +111,6 @@ from ..routers.batch_router import get_dashboard_stats # Reuse logic? Or replica
 # reports_router.py -> (depends on models, db)
 # Circular import? 
 # batch_router imports nothing from reports_router. So it should be fine.
-from ..routers.batch_router import get_dashboard_stats
 
 @router.get("/excel/dashboard")
 def export_dashboard_excel(db: Session = Depends(get_db)):

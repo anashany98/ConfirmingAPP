@@ -1,7 +1,7 @@
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import getSampleStyleSheet
 import io
 from datetime import datetime
 
@@ -97,7 +97,7 @@ def generate_monthly_report_pdf(stats):
     normal_style = styles['Normal']
     
     # Title
-    elements.append(Paragraph(f"Informe Mensual de Tesorería", title_style))
+    elements.append(Paragraph("Informe Mensual de Tesorería", title_style))
     elements.append(Paragraph(f"{stats['month']} {stats['year']}", h2_style))
     elements.append(Spacer(1, 24))
     

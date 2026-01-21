@@ -1,7 +1,6 @@
 import os
 import re
 import zipfile
-import shutil
 from pathlib import Path
 
 # Paths

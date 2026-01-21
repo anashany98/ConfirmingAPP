@@ -349,7 +349,7 @@ def export_batch_pdf(batch_id: int, db: Session = Depends(get_db)):
     )
 
 from ..services.email_service import email_service
-from ..models import Provider, Settings
+from ..models import Settings
 
 @router.post("/{batch_id}/notify")
 async def notify_batch_providers(batch_id: int, db: Session = Depends(get_db)):
