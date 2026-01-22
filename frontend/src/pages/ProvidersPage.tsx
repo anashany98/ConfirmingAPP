@@ -44,7 +44,10 @@ export default function ProvidersPage() {
     const { data: providers, isLoading } = useQuery({
         queryKey: ['providers'],
         queryFn: async () => {
-            const { data } = await axios.get(`${API_URL}/providers/`)
+            const token = localStorage.getItem('auth_token')
+            const { data } = await axios.get(`${API_URL}/providers/`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
             return data
         }
     })
