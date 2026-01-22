@@ -74,9 +74,16 @@ export default function ProvidersPage() {
     // Mutations
     const uploadMutation = useMutation({
         mutationFn: async (file: File) => {
+            const token = localStorage.getItem('token')
+            if (!token) throw new Error("No estás autenticado")
+
             const fd = new FormData()
             fd.append('file', file)
-            const { data } = await axios.post(`${API_URL}/providers/upload`, fd)
+            const { data } = await axios.post(`${API_URL}/providers/upload`, fd, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
             return data
         },
         onSuccess: (data) => {
@@ -89,7 +96,10 @@ export default function ProvidersPage() {
 
     const createMutation = useMutation({
         mutationFn: async (data: Partial<Provider>) => {
-            await axios.post(`${API_URL}/providers/`, data)
+            const token = localStorage.getItem('token')
+            await axios.post(`${API_URL}/providers/`, data, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['providers'] })
@@ -99,7 +109,10 @@ export default function ProvidersPage() {
 
     const updateMutation = useMutation({
         mutationFn: async (data: Partial<Provider>) => {
-            await axios.put(`${API_URL}/providers/${data.cif}`, data)
+            const token = localStorage.getItem('token')
+            await axios.put(`${API_URL}/providers/${data.cif}`, data, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['providers'] })
@@ -110,7 +123,10 @@ export default function ProvidersPage() {
     const deleteMutation = useMutation({
         mutationFn: async (cif: string) => {
             if (!confirm(`¿Seguro que quieres borrar al proveedor ${cif}?`)) throw new Error("Cancelled")
-            await axios.delete(`${API_URL}/providers/${cif}`)
+            const token = localStorage.getItem('token')
+            await axios.delete(`${API_URL}/providers/${cif}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
         },
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['providers'] })
     })
