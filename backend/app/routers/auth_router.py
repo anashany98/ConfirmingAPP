@@ -36,7 +36,24 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
 
 @router.post("/login", response_model=schemas.Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    print(f"DEBUG LOGIN Attempt: Username='{form_data.username}'")
     user = db.query(models.User).filter(models.User.username == form_data.username).first()
+    
+    if not user:
+        print("DEBUG LOGIN: User NOT FOUND in database")
+    else:
+        print(f"DEBUG LOGIN: User found. ID={user.id}, IsActive={user.is_active}")
+        print(f"DEBUG LOGIN: Stored Hash: {user.hashed_password}")
+        is_valid = auth.verify_password(form_data.password, user.hashed_password)
+        print(f"DEBUG LOGIN: Password verify result: {is_valid}")
+        # Test directly with passlib to be sure
+        from passlib.hash import bcrypt
+        try:
+             direct_verify = bcrypt.verify(form_data.password, user.hashed_password)
+             print(f"DEBUG LOGIN: Direct bcrypt comparison: {direct_verify}")
+        except Exception as e:
+             print(f"DEBUG LOGIN: Direct bcrypt error: {e}")
+
     if not user or not auth.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -48,6 +65,38 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+@router.get("/debug-internal-check")
+async def debug_internal_check(db: Session = Depends(get_db)):
+    """Check what users exist in the DB this app is connected to"""
+    users = db.query(models.User).all()
+    results = []
+    from passlib.hash import bcrypt
+    
+    for u in users:
+        # Check if 'admin123' works for this user
+        is_admin123 = False
+        try:
+            is_admin123 = bcrypt.verify("admin123", u.hashed_password)
+        except:
+            is_admin123 = "Error"
+            
+        results.append({
+            "id": u.id,
+            "username": u.username, 
+            "email": u.email,
+            "hash_prefix": u.hashed_password[:10] if u.hashed_password else "None",
+            "matches_admin123": is_admin123
+        })
+    
+    # Also return masked DB url
+    import os
+    db_url = os.getenv("DATABASE_URL", "Not Set")
+    
+    return {
+        "connected_db_users": results,
+        "env_db_url": db_url if "postgres" in db_url else "HIDDEN"
+    }
 
 @router.get("/me", response_model=schemas.User)
 async def read_users_me(current_user: models.User = Depends(get_current_user)):
