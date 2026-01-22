@@ -2,23 +2,18 @@ version: '3.8'
 
 services:
   backend:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     restart: always
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://user:password@db:5432/confirming_db}
-
-    deploy:
-      resources:
-        reservations:
-          memory: 256M
-        limits:
-          memory: 512M
+      - DATABASE_URL=${DATABASE_URL}
+    ports:
+      - "5055:5055"
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`api-confirming.egeadev.cloud`)"
-      - "traefik.http.services.backend.loadbalancer.server.port=5055"
+      - traefik.enable=true
+      - traefik.http.routers.backend.rule=Host(`api-confirming.egeadev.cloud`)
+      - traefik.http.services.backend.loadbalancer.server.port=5055
     networks:
       - coolify
     healthcheck:
@@ -32,24 +27,23 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=${VITE_API_URL:-http://localhost:5055}
+        - VITE_API_URL=http://192.168.1.242:5055
     restart: always
     environment:
       - NODE_ENV=production
     depends_on:
       - backend
-    deploy:
-      resources:
-        limits:
-          memory: 128M
+    ports:
+      - "8095:8095"
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`confirming.egeadev.cloud`)"
-      - "traefik.http.services.bankinter-frontend.loadbalancer.server.port=8095"
+      - traefik.enable=true
+      - traefik.http.routers.frontend.rule=Host(`confirming.egeadev.cloud`)
+      - traefik.http.services.frontend.loadbalancer.server.port=8095
     networks:
       - coolify
 
 networks:
   coolify:
     external: true
+
 
