@@ -74,7 +74,7 @@ export default function ProvidersPage() {
     // Mutations
     const uploadMutation = useMutation({
         mutationFn: async (file: File) => {
-            const token = localStorage.getItem('token')
+            const token = localStorage.getItem('auth_token')
             if (!token) throw new Error("No estás autenticado")
 
             const fd = new FormData()
@@ -96,7 +96,7 @@ export default function ProvidersPage() {
 
     const createMutation = useMutation({
         mutationFn: async (data: Partial<Provider>) => {
-            const token = localStorage.getItem('token')
+            const token = localStorage.getItem('auth_token')
             await axios.post(`${API_URL}/providers/`, data, {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
@@ -109,7 +109,7 @@ export default function ProvidersPage() {
 
     const updateMutation = useMutation({
         mutationFn: async (data: Partial<Provider>) => {
-            const token = localStorage.getItem('token')
+            const token = localStorage.getItem('auth_token')
             await axios.put(`${API_URL}/providers/${data.cif}`, data, {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
@@ -123,7 +123,7 @@ export default function ProvidersPage() {
     const deleteMutation = useMutation({
         mutationFn: async (cif: string) => {
             if (!confirm(`¿Seguro que quieres borrar al proveedor ${cif}?`)) throw new Error("Cancelled")
-            const token = localStorage.getItem('token')
+            const token = localStorage.getItem('auth_token')
             await axios.delete(`${API_URL}/providers/${cif}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
