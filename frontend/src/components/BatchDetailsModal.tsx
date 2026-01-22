@@ -45,7 +45,10 @@ export function BatchDetailsModal({ isOpen, onClose, batch, loading }: BatchDeta
         if (!batch) return
         setNotifying(true)
         try {
-            const res = await axios.post(`${API_URL}/batches/${batch.id}/notify`)
+            const token = localStorage.getItem('auth_token')
+            const res = await axios.post(`${API_URL}/batches/${batch.id}/notify`, {}, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
             alert(`✅ ${res.data.message}`)
         } catch (e) {
             console.error(e)

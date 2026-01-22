@@ -39,7 +39,10 @@ export default function CalendarPage() {
             params.append('payment_date_end', endDateStr)
             params.append('limit', '100') // Increase limit for calendar view
 
-            const res = await axios.get(`${API_URL}/batches/?${params.toString()}`)
+            const token = localStorage.getItem('auth_token')
+            const res = await axios.get(`${API_URL}/batches/?${params.toString()}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
             return res.data.items as Batch[]
         }
     })
@@ -49,7 +52,10 @@ export default function CalendarPage() {
         queryKey: ['batch', selectedBatchId],
         queryFn: async () => {
             if (!selectedBatchId) return null
-            const res = await axios.get(`${API_URL}/batches/${selectedBatchId}`)
+            const token = localStorage.getItem('auth_token')
+            const res = await axios.get(`${API_URL}/batches/${selectedBatchId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
             return res.data
         },
         enabled: !!selectedBatchId

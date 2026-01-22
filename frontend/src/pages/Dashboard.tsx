@@ -11,7 +11,10 @@ export default function Dashboard() {
     const { data: stats } = useQuery({
         queryKey: ['dashboard-stats'],
         queryFn: async () => {
-            const { data } = await axios.get(`${API_URL}/batches/stats`)
+            const token = localStorage.getItem('auth_token')
+            const { data } = await axios.get(`${API_URL}/batches/stats`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
             return data
         }
     })
@@ -19,7 +22,10 @@ export default function Dashboard() {
     const { data: recentBatches } = useQuery({
         queryKey: ['batches'],
         queryFn: async () => {
-            const { data } = await axios.get(`${API_URL}/batches/?limit=5`)
+            const token = localStorage.getItem('auth_token')
+            const { data } = await axios.get(`${API_URL}/batches/?limit=5`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
             return data
         }
     })

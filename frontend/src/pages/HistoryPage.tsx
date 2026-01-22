@@ -41,7 +41,6 @@ export default function HistoryPage() {
     const pageSize = 10
     const queryClient = useQueryClient()
 
-    // Batches Query
     const { data: batchesData, isLoading: loadingBatches } = useQuery({
         queryKey: ['batches', page, searchTerm, startDate, endDate],
         queryFn: async () => {
@@ -52,7 +51,10 @@ export default function HistoryPage() {
             if (startDate) params.append('start_date', startDate)
             if (endDate) params.append('end_date', endDate)
 
-            const res = await axios.get(`${API_URL}/batches/?${params.toString()}`)
+            const token = localStorage.getItem('auth_token')
+            const res = await axios.get(`${API_URL}/batches/?${params.toString()}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
             return res.data as { items: Batch[], total: number }
         },
         placeholderData: (previousData) => previousData
@@ -62,7 +64,10 @@ export default function HistoryPage() {
     const { data: logs, isLoading: loadingLogs } = useQuery({
         queryKey: ['logs'],
         queryFn: async () => {
-            const res = await axios.get(`${API_URL}/logs/imports`)
+            const token = localStorage.getItem('auth_token')
+            const res = await axios.get(`${API_URL}/logs/imports`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
             return res.data as ImportLog[]
         }
     })
@@ -72,7 +77,10 @@ export default function HistoryPage() {
         queryKey: ['batch', selectedBatchId],
         queryFn: async () => {
             if (!selectedBatchId) return null
-            const res = await axios.get(`${API_URL}/batches/${selectedBatchId}`)
+            const token = localStorage.getItem('auth_token')
+            const res = await axios.get(`${API_URL}/batches/${selectedBatchId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
             return res.data
         },
         enabled: !!selectedBatchId
@@ -91,7 +99,9 @@ export default function HistoryPage() {
     const handleDownload = async (id: number) => {
         try {
             toast.info("Generando archivo...")
+            const token = localStorage.getItem('auth_token')
             const response = await axios.get(`${API_URL}/batches/${id}/export`, {
+                headers: { 'Authorization': `Bearer ${token}` },
                 responseType: 'blob'
             })
 
@@ -129,7 +139,9 @@ export default function HistoryPage() {
     const handlePrint = async (id: number) => {
         try {
             toast.info("Generando PDF...")
+            const token = localStorage.getItem('auth_token')
             const response = await axios.get(`${API_URL}/batches/${id}/export-pdf`, {
+                headers: { 'Authorization': `Bearer ${token}` },
                 responseType: 'blob'
             })
 
@@ -149,7 +161,10 @@ export default function HistoryPage() {
 
     const deleteMutation = useMutation({
         mutationFn: async (batchId: number) => {
-            await axios.delete(`${API_URL}/batches/${batchId}`)
+            const token = localStorage.getItem('auth_token')
+            await axios.delete(`${API_URL}/batches/${batchId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
         },
         onSuccess: () => {
             toast.success('Remesa eliminada correctamente')
@@ -169,7 +184,10 @@ export default function HistoryPage() {
 
     const toggleUploadMutation = useMutation({
         mutationFn: async (batchId: number) => {
-            await axios.patch(`${API_URL}/batches/${batchId}/toggle-upload`)
+            const token = localStorage.getItem('auth_token')
+            await axios.patch(`${API_URL}/batches/${batchId}/toggle-upload`, {}, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['batches'] })

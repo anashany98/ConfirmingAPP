@@ -60,7 +60,10 @@ export default function UploadPage() {
     // Add Provider Update Mutation (Email)
     const updateProviderMutation = useMutation({
         mutationFn: async ({ cif, email }: { cif: string, email: string }) => {
-            await axios.put(`${API_URL}/providers/${cif}`, { email, cif })
+            const token = localStorage.getItem('auth_token')
+            await axios.put(`${API_URL}/providers/${cif}`, { email, cif }, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['providers'] })
@@ -70,7 +73,10 @@ export default function UploadPage() {
     // Add Provider Update Mutation (IBAN)
     const updateProviderIbanMutation = useMutation({
         mutationFn: async ({ cif, iban }: { cif: string, iban: string }) => {
-            await axios.put(`${API_URL}/providers/${cif}`, { iban, cif })
+            const token = localStorage.getItem('auth_token')
+            await axios.put(`${API_URL}/providers/${cif}`, { iban, cif }, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['providers'] })
@@ -136,7 +142,9 @@ export default function UploadPage() {
             setUploadProgress(0)
             const formData = new FormData()
             formData.append('file', file)
+            const token = localStorage.getItem('auth_token')
             const res = await axios.post(`${API_URL}/import/upload${force ? '?force=true' : ''}`, formData, {
+                headers: { 'Authorization': `Bearer ${token}` },
                 onUploadProgress: (progressEvent) => {
                     if (progressEvent.total) {
                         const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
@@ -174,7 +182,10 @@ export default function UploadPage() {
                 file_hash: fileHash,
                 payment_date: batchDueDate || null
             }
-            const res = await axios.post(`${API_URL}/batches/`, batchData)
+            const token = localStorage.getItem('auth_token')
+            const res = await axios.post(`${API_URL}/batches/`, batchData, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
             return res.data
         },
         onSuccess: () => {
@@ -212,7 +223,10 @@ export default function UploadPage() {
     // Generic Provider Update (Name, IBAN, etc.)
     const updateFullProviderMutation = useMutation({
         mutationFn: async (data: { cif: string, name?: string, iban?: string }) => {
-            await axios.put(`${API_URL}/providers/${data.cif}`, data)
+            const token = localStorage.getItem('auth_token')
+            await axios.put(`${API_URL}/providers/${data.cif}`, data, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['providers'] })

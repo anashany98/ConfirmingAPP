@@ -25,7 +25,10 @@ export default function CommandPalette() {
         queryKey: ['search', query],
         queryFn: async () => {
             if (query.length < 2) return []
-            const res = await axios.get(`${API_URL}/search/?q=${query}`)
+            const token = localStorage.getItem('auth_token')
+            const res = await axios.get(`${API_URL}/search/?q=${query}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
             return res.data as SearchResult[]
         },
         enabled: query.length >= 2,

@@ -34,7 +34,10 @@ export default function ProviderDetailsPage() {
     const { data: stats, isLoading: loadingStats } = useQuery({
         queryKey: ['provider', cif, 'stats'],
         queryFn: async () => {
-            const res = await axios.get(`${API_URL}/providers/${cif}/stats`)
+            const token = localStorage.getItem('auth_token')
+            const res = await axios.get(`${API_URL}/providers/${cif}/stats`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
             return res.data as ProviderStats
         }
     })
@@ -42,7 +45,10 @@ export default function ProviderDetailsPage() {
     const { data: invoices, isLoading: loadingInvoices } = useQuery({
         queryKey: ['provider', cif, 'invoices'],
         queryFn: async () => {
-            const res = await axios.get(`${API_URL}/providers/${cif}/invoices`)
+            const token = localStorage.getItem('auth_token')
+            const res = await axios.get(`${API_URL}/providers/${cif}/invoices`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
             return res.data as Invoice[]
         }
     })
