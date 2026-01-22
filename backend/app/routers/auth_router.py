@@ -162,21 +162,27 @@ async def force_reset_admin(db: Session = Depends(get_db)):
     Emergency endpoint to reset 'admin' password to 'admin123'.
     Use this if you are locked out.
     """
-    user = db.query(models.User).filter(models.User.username == "admin").first()
-    hashed_password = auth.get_password_hash("admin123")
-    
-    if user:
-        user.hashed_password = hashed_password
-        db.commit()
-        return {"message": "Admin password reset to 'admin123'"}
-    else:
-        # Create if not exists
+    try:
+        # Delete any existing admin user
+        existing = db.query(models.User).filter(models.User.username == "admin").first()
+        if existing:
+            db.delete(existing)
+            db.commit()
+        
+        # Create new admin user with fresh password
+        # Using passlib directly to ensure correct hashing
+        from passlib.hash import bcrypt
+        hashed = bcrypt.using(rounds=12).hash("admin123")
+        
         db_user = models.User(
             username="admin",
             email="admin@example.com",
-            hashed_password=hashed_password,
+            hashed_password=hashed,
             is_active=True
         )
         db.add(db_user)
         db.commit()
-        return {"message": "Admin user created with password 'admin123'"}
+        return {"message": "Admin user recreated with password 'admin123'"}
+    except Exception as e:
+        db.rollback()
+        return {"message": f"Error: {str(e)}"}
