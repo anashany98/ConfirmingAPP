@@ -12,10 +12,21 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 1 week
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except ValueError:
+        # Likely "password cannot be longer than 72 bytes"
+        return False
 
 def get_password_hash(password):
-    return pwd_context.hash(password)
+    try:
+        return pwd_context.hash(password)
+    except ValueError as e:
+        # If password is too long, we can't hash it with bcrypt directly.
+        # Fallback or error is needed. For now, let's just log and raise or truncate?
+        # Raising is better so the user knows why registration failed.
+        # But for auto-generated things, we might want to be careful.
+        raise e
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
