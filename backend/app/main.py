@@ -44,9 +44,25 @@ app.include_router(reports_router.router)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Global exception: {exc}")
     logger.error(traceback.format_exc())
+    
+    # Get the origin from the request
+    origin = request.headers.get("origin", "")
+    allowed_origins = [
+        "http://192.168.1.242:8095",
+        "http://localhost:8095",
+        "http://127.0.0.1:8095",
+        "https://confirming.egeadev.cloud",
+    ]
+    
+    headers = {}
+    if origin in allowed_origins:
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    
     return JSONResponse(
         status_code=500,
         content={"message": "Internal Server Error", "detail": str(exc)},
+        headers=headers
     )
 
 @app.get("/")
