@@ -10,7 +10,12 @@ app = FastAPI(title="ConfirmingAPP API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://192.168.1.242:8095",
+        "http://localhost:8095",
+        "http://127.0.0.1:8095",
+        "https://confirming.egeadev.cloud",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
