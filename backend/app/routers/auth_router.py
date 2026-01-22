@@ -155,3 +155,28 @@ async def setup_initial_user(db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_user)
     return {"message": "Admin user created. Username: admin, Password: admin123"}
+
+@router.get("/force-reset-admin", status_code=200)
+async def force_reset_admin(db: Session = Depends(get_db)):
+    """
+    Emergency endpoint to reset 'admin' password to 'admin123'.
+    Use this if you are locked out.
+    """
+    user = db.query(models.User).filter(models.User.username == "admin").first()
+    hashed_password = auth.get_password_hash("admin123")
+    
+    if user:
+        user.hashed_password = hashed_password
+        db.commit()
+        return {"message": "Admin password reset to 'admin123'"}
+    else:
+        # Create if not exists
+        db_user = models.User(
+            username="admin",
+            email="admin@example.com",
+            hashed_password=hashed_password,
+            is_active=True
+        )
+        db.add(db_user)
+        db.commit()
+        return {"message": "Admin user created with password 'admin123'"}
