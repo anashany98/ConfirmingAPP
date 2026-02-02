@@ -121,10 +121,11 @@ export default function UploadPage() {
             const hasCountry = inv.pais && inv.pais.trim() !== ""
             const hasEmail = inv.email && inv.email.trim() !== ""
             const hasIban = inv.cuenta && inv.cuenta.trim() !== ""
-            const hasPhone = inv.phone && inv.phone.trim() !== "" // New field
+            // Phone is now optional
+            // const hasPhone = inv.phone && inv.phone.trim() !== "" 
 
             // If any check fails, add to queue
-            return (!hasName || !hasAddress || !hasCity || !hasZip || !hasCountry || !hasEmail || !hasIban || !hasPhone) && inv.cif
+            return (!hasName || !hasAddress || !hasCity || !hasZip || !hasCountry || !hasEmail || !hasIban) && inv.cif
         })
 
         if (missingInfo.length > 0) {
@@ -979,7 +980,7 @@ function MissingInfoModal({ invoices, onResolve }: { invoices: Invoice[], onReso
     const groupKeys = Object.keys(groups)
 
     // Form State: Key = CIF
-    const [forms, setForms] = useState<Record<string, { nombre: string, direccion: string, poblacion: string, cp: string, pais: string, email: string, cuenta: string, phone: string }>>({})
+    const [forms, setForms] = useState<Record<string, { nombre: string, direccion: string, poblacion: string, cp: string, pais: string, email: string, cuenta: string }>>({})
 
     // Init state
     useState(() => {
@@ -993,8 +994,7 @@ function MissingInfoModal({ invoices, onResolve }: { invoices: Invoice[], onReso
                 cp: rep.cp || "",
                 pais: rep.pais || "ES",
                 email: rep.email || "",
-                cuenta: rep.cuenta || "",
-                phone: rep.phone || ""
+                cuenta: rep.cuenta || ""
             }
         })
         setForms(initial)
@@ -1018,7 +1018,7 @@ function MissingInfoModal({ invoices, onResolve }: { invoices: Invoice[], onReso
             if (!form.pais) { alert(`Falta País para ${cif}`); return; }
             if (!form.email) { alert(`Falta Email para ${cif}`); return; }
             if (!form.cuenta) { alert(`Falta Cuenta IBAN para ${cif}`); return; }
-            if (!form.phone) { alert(`Falta Teléfono para ${cif}`); return; }
+            if (!form.cuenta) { alert(`Falta Cuenta IBAN para ${cif}`); return; }
         }
 
         const updates: any[] = []
@@ -1056,7 +1056,7 @@ function MissingInfoModal({ invoices, onResolve }: { invoices: Invoice[], onReso
                     {groupKeys.map(cif => {
                         const group = groups[cif]
                         const rep = group.representative
-                        const form = forms[cif] || { nombre: '', direccion: '', poblacion: '', cp: '', pais: 'ES', email: '', cuenta: '', phone: '' }
+                        const form = forms[cif] || { nombre: '', direccion: '', poblacion: '', cp: '', pais: 'ES', email: '', cuenta: '' }
 
                         return (
                             <div key={cif} className="bg-slate-50 dark:bg-slate-950/50 p-4 rounded-lg border border-slate-100 dark:border-slate-800">
@@ -1123,16 +1123,6 @@ function MissingInfoModal({ invoices, onResolve }: { invoices: Invoice[], onReso
                                             placeholder="ES"
                                         />
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-slate-500 mb-1">Teléfono *</label>
-                                        <input
-                                            type="text"
-                                            value={form.phone}
-                                            onChange={e => handleChange(cif, 'phone', e.target.value)}
-                                            className="w-full p-2 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800"
-                                            placeholder="+34..."
-                                        />
-                                    </div>
                                     <div className="col-span-1 md:col-span-2">
                                         <label className="block text-xs font-semibold text-slate-500 mb-1">Email *</label>
                                         <input
@@ -1168,6 +1158,6 @@ function MissingInfoModal({ invoices, onResolve }: { invoices: Invoice[], onReso
                     </button>
                 </div>
             </div>
-        </div>
+        </div >
     )
 }
