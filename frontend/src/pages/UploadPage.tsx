@@ -980,7 +980,7 @@ function MissingInfoModal({ invoices, onResolve }: { invoices: Invoice[], onReso
     const groupKeys = Object.keys(groups)
 
     // Form State: Key = CIF
-    const [forms, setForms] = useState<Record<string, { nombre: string, direccion: string, poblacion: string, cp: string, pais: string, email: string, cuenta: string }>>({})
+    const [forms, setForms] = useState<Record<string, { nombre: string, direccion: string, poblacion: string, cp: string, pais: string, email: string, cuenta: string, phone: string }>>({})
 
     // Init state
     useState(() => {
@@ -994,7 +994,8 @@ function MissingInfoModal({ invoices, onResolve }: { invoices: Invoice[], onReso
                 cp: rep.cp || "",
                 pais: rep.pais || "ES",
                 email: rep.email || "",
-                cuenta: rep.cuenta || ""
+                cuenta: rep.cuenta || "",
+                phone: rep.phone || ""
             }
         })
         setForms(initial)
@@ -1056,7 +1057,7 @@ function MissingInfoModal({ invoices, onResolve }: { invoices: Invoice[], onReso
                     {groupKeys.map(cif => {
                         const group = groups[cif]
                         const rep = group.representative
-                        const form = forms[cif] || { nombre: '', direccion: '', poblacion: '', cp: '', pais: 'ES', email: '', cuenta: '' }
+                        const form = forms[cif] || { nombre: '', direccion: '', poblacion: '', cp: '', pais: 'ES', email: '', cuenta: '', phone: '' }
 
                         return (
                             <div key={cif} className="bg-slate-50 dark:bg-slate-950/50 p-4 rounded-lg border border-slate-100 dark:border-slate-800">

@@ -134,6 +134,7 @@ def process_factusol_report(df: pd.DataFrame, db: Session = None):
                     city = provider.city or ""
                     zip_code = provider.zip_code or ""
                     country = provider.country or "ES"
+                    phone = provider.phone or ""
 
                     # Check for IBAN Mismatch
                     # If file has IBAN, and DB has IBAN, and they differ -> Mismatch
@@ -193,7 +194,9 @@ def process_factusol_report(df: pd.DataFrame, db: Session = None):
                 "status": status,
                 "validation_message": ", ".join(val_msgs),
                 "iban_mismatch": locals().get('iban_mismatch', False),
-                "db_iban": locals().get('db_iban', "")
+                "uban_mismatch": locals().get('iban_mismatch', False),
+                "db_iban": locals().get('db_iban', ""),
+                "phone": locals().get('phone', "")
             })
             
             # Inject payment date if needed.
@@ -250,7 +253,8 @@ def process_flat_table(content: bytes, db: Session = None):
             "poblacion": str(row.get(final_col_map.get('CITY'), '')),
             "cp": str(row.get(final_col_map.get('ZIP'), '')),
             "pais": str(row.get(final_col_map.get('COUNTRY'), 'ES')),
-            "status": "VALID"
+            "status": "VALID",
+            "phone": ""
         }
         
         # Clean 'nan' values
@@ -295,8 +299,11 @@ def process_flat_table(content: bytes, db: Session = None):
                 if not inv['direccion']: inv['direccion'] = provider.address or ""
                 if not inv['poblacion']: inv['poblacion'] = provider.city or ""
                 if not inv['cp']: inv['cp'] = provider.zip_code or ""
+                if not inv['cp']: inv['cp'] = provider.zip_code or ""
                 if not inv['pais'] or inv['pais'] == 'ES': # Prefer Provider country if we have default ES
                      if provider.country: inv['pais'] = provider.country
+                
+                if not inv['phone']: inv['phone'] = provider.phone or ""
 
                 inv['db_iban'] = provider.iban or ""
                 inv['iban_mismatch'] = False
