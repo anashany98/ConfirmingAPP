@@ -27,7 +27,7 @@ def generate_bankinter_excel(invoices: List[Invoice], db: Session) -> bytes:
             inv.direccion or "",                        # DIRECCION
             inv.cp or "",                               # CP
             inv.poblacion or "",                        # POBLACION
-            inv.pais or "ES",                           # PAIS
+            "ES" if not inv.pais or inv.pais.upper() in ["ESPAÑA", "SPAIN", "ES"] else inv.pais, # PAIS
             inv.cuenta or "",                           # CUENTA
             inv.importe,                                # IMPORTE (Number)
             inv.factura or "",                          # FACTURA
