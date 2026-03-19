@@ -1,6 +1,8 @@
 # Python
 backend/__pycache__/
 backend/venv/
+venv/
+.venv/
 backend/.env
 *.pyc
 __pycache__
@@ -26,6 +28,9 @@ CONFIRMING_*.xlsx
 # Database
 confirming_db/
 postgres_data/
+*.db
+*.sqlite
+*.sqlite3
 
 # IDE
 .vscode/
