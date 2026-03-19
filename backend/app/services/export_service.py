@@ -48,5 +48,22 @@ def generate_bankinter_excel(invoices: List[Invoice], db: Session) -> bytes:
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, sheet_name='CONFIRMING', index=False)
+        ws = writer.sheets['CONFIRMING']
+        
+        # Hide standard Excel gridlines
+        ws.sheet_view.showGridLines = False
+        
+        # Explicitly remove all cell borders (the "lines" the user sees)
+        from openpyxl.styles import Border, Side
+        no_border = Border(
+            left=Side(style=None), 
+            right=Side(style=None), 
+            top=Side(style=None), 
+            bottom=Side(style=None)
+        )
+        
+        for row in ws.iter_rows():
+            for cell in row:
+                cell.border = no_border
     
     return output.getvalue()

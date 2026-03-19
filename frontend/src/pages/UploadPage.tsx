@@ -568,58 +568,69 @@ export default function UploadPage() {
 }
 
 function EmailResolutionModal({ invoices, onResolve }: { invoices: Invoice[], onResolve: (map: Record<number, string>, updates: { cif: string, email: string }[]) => void }) {
-    // Map invoice ID -> selected email
-    const [selections, setSelections] = useState<Record<number, string>>({})
-    // Map invoice ID -> custom new email input value
-    const [customInputs, setCustomInputs] = useState<Record<number, string>>({})
-    // Set of IDs where "Add New" is active
-    const [addingNew, setAddingNew] = useState<Record<number, boolean>>({})
+    // Group invoices by CIF to solve "repeatedly choosing for the same provider" problem
+    const groupedInvoices: Record<string, Invoice[]> = {}
+    invoices.forEach(inv => {
+        if (!groupedInvoices[inv.cif]) groupedInvoices[inv.cif] = []
+        groupedInvoices[inv.cif].push(inv)
+    })
 
-    const handleSelection = (id: number, email: string) => {
-        setSelections(prev => ({ ...prev, [id]: email }))
+    const cifs = Object.keys(groupedInvoices)
+
+    // Selection by CIF instead of by individual Invoice ID
+    const [selections, setSelections] = useState<Record<string, string>>({})
+    const [customInputs, setCustomInputs] = useState<Record<string, string>>({})
+    const [addingNew, setAddingNew] = useState<Record<string, boolean>>({})
+
+    const handleSelection = (cif: string, email: string) => {
+        setSelections(prev => ({ ...prev, [cif]: email }))
     }
 
-    const toggleAddNew = (id: number) => {
-        setAddingNew(prev => ({ ...prev, [id]: !prev[id] }))
-        // clear selection if adding new
-        if (!addingNew[id]) {
+    const toggleAddNew = (cif: string) => {
+        setAddingNew(prev => ({ ...prev, [cif]: !prev[cif] }))
+        if (!addingNew[cif]) {
             setSelections(prev => {
                 const copy = { ...prev }
-                delete copy[id]
+                delete copy[cif]
                 return copy
             })
         }
     }
 
     const handleConfirm = () => {
-        // Build updates
         const updates: { cif: string, email: string }[] = []
-        const finalMap: Record<number, string> = { ...selections }
+        const invoiceResolutionMap: Record<number, string> = {}
 
-        // Validate all resolved
-        for (const inv of invoices) {
-            if (addingNew[inv.id]) {
-                const newEmail = customInputs[inv.id]
+        for (const cif of cifs) {
+            const providerInvoices = groupedInvoices[cif]
+            let chosenEmail = ""
+
+            if (addingNew[cif]) {
+                const newEmail = customInputs[cif]
                 if (!newEmail || !newEmail.includes('@')) {
-                    alert(`Por favor introduce un email válido para ${inv.nombre}`)
+                    alert(`Por favor introduce un email válido para ${providerInvoices[0].nombre}`)
                     return
                 }
-                // Determine new full string to save to DB
-                // We take the existing string and append the new one
-                const current = inv.email || ""
-                const fullString = current ? `${current}, ${newEmail}` : newEmail
-
-                updates.push({ cif: inv.cif, email: fullString })
-                finalMap[inv.id] = newEmail // For the batch we use just the new one
-            } else if (!finalMap[inv.id]) {
-                // Determine default if not selected?
-                // The requirements say user MUST select.
-                alert(`Por favor selecciona un email para ${inv.nombre}`)
-                return
+                chosenEmail = newEmail
+                // Save the NEW single selection as the primary provider email for persistence
+                updates.push({ cif, email: newEmail })
+            } else {
+                chosenEmail = selections[cif]
+                if (!chosenEmail) {
+                    alert(`Por favor selecciona un email para ${providerInvoices[0].nombre}`)
+                    return
+                }
+                // Also update provider to remember this specific choice
+                updates.push({ cif, email: chosenEmail })
             }
+
+            // Apply the same email to ALL invoices of this provider in this batch
+            providerInvoices.forEach(inv => {
+                invoiceResolutionMap[inv.id] = chosenEmail
+            })
         }
 
-        onResolve(finalMap, updates)
+        onResolve(invoiceResolutionMap, updates)
     }
 
     return (
@@ -631,23 +642,25 @@ function EmailResolutionModal({ invoices, onResolve }: { invoices: Invoice[], on
                         Resolver Duplicidad de Correos
                     </h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Algunos proveedores tienen múltiples correos. Selecciona cuál usar para esta remesa.
+                        Sección agrupada por proveedor. Selecciona el correo principal para cada uno.
                     </p>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                    {invoices.map(inv => {
-                        const options = (inv.email || "").split(/[,;]/).map(s => s.trim()).filter(Boolean)
+                    {cifs.map(cif => {
+                        const invGroup = groupedInvoices[cif]
+                        const firstInv = invGroup[0]
+                        const options = (firstInv.email || "").split(/[,;]/).map(s => s.trim()).filter(Boolean)
 
                         return (
-                            <div key={inv.id} className="bg-slate-50 dark:bg-slate-950/50 p-4 rounded-lg border border-slate-100 dark:border-slate-800">
+                            <div key={cif} className="bg-slate-50 dark:bg-slate-950/50 p-4 rounded-lg border border-slate-100 dark:border-slate-800">
                                 <div className="flex justify-between items-start mb-3">
                                     <div>
-                                        <p className="font-semibold text-slate-900 dark:text-slate-100">{inv.nombre}</p>
-                                        <p className="text-xs font-mono text-slate-500">{inv.cif}</p>
+                                        <p className="font-semibold text-slate-900 dark:text-slate-100">{firstInv.nombre}</p>
+                                        <p className="text-xs font-mono text-slate-500">{cif}</p>
                                     </div>
                                     <div className="text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded">
-                                        ID: {inv.id}
+                                        {invGroup.length} factura(s)
                                     </div>
                                 </div>
 
@@ -656,12 +669,12 @@ function EmailResolutionModal({ invoices, onResolve }: { invoices: Invoice[], on
                                         <label key={idx} className="flex items-center gap-3 p-2 rounded cursor-pointer hover:bg-white dark:hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
                                             <input
                                                 type="radio"
-                                                name={`email-${inv.id}`}
+                                                name={`email-${cif}`}
                                                 value={opt}
-                                                checked={selections[inv.id] === opt && !addingNew[inv.id]}
+                                                checked={selections[cif] === opt && !addingNew[cif]}
                                                 onChange={() => {
-                                                    setAddingNew(prev => ({ ...prev, [inv.id]: false }))
-                                                    handleSelection(inv.id, opt)
+                                                    setAddingNew(prev => ({ ...prev, [cif]: false }))
+                                                    handleSelection(cif, opt)
                                                 }}
                                                 className="text-blue-600 focus:ring-blue-500"
                                             />
@@ -669,33 +682,27 @@ function EmailResolutionModal({ invoices, onResolve }: { invoices: Invoice[], on
                                         </label>
                                     ))}
 
-                                    {/* Add New Option */}
                                     <div className="pt-2 border-t border-slate-200 dark:border-slate-800 mt-2">
                                         <label className="flex items-center gap-2 cursor-pointer mb-2">
                                             <input
                                                 type="checkbox"
-                                                checked={!!addingNew[inv.id]}
-                                                onChange={() => toggleAddNew(inv.id)}
+                                                checked={!!addingNew[cif]}
+                                                onChange={() => toggleAddNew(cif)}
                                                 className="rounded text-blue-600 focus:ring-blue-500"
                                             />
                                             <span className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                                                <Plus size={14} /> Introducir nuevo correo
+                                                <Plus size={14} /> Introducir nuevo correo (reemplazará los actuales)
                                             </span>
                                         </label>
 
-                                        {addingNew[inv.id] && (
+                                        {addingNew[cif] && (
                                             <input
                                                 type="email"
                                                 placeholder="nuevo@email.com"
                                                 className="w-full p-2 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                                                value={customInputs[inv.id] || ""}
-                                                onChange={e => setCustomInputs(prev => ({ ...prev, [inv.id]: e.target.value }))}
+                                                value={customInputs[cif] || ""}
+                                                onChange={e => setCustomInputs(prev => ({ ...prev, [cif]: e.target.value }))}
                                             />
-                                        )}
-                                        {addingNew[inv.id] && (
-                                            <p className="text-xs text-green-600 mt-1">
-                                                * Se añadirá a la base de datos de este proveedor.
-                                            </p>
                                         )}
                                     </div>
                                 </div>
@@ -706,7 +713,7 @@ function EmailResolutionModal({ invoices, onResolve }: { invoices: Invoice[], on
 
                 <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/50 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
                     <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium shadow-sm transition-colors" onClick={handleConfirm}>
-                        Confirmar Selección
+                        Aplicar a {invoices.length} factura(s)
                     </button>
                 </div>
             </div>

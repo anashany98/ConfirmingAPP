@@ -294,8 +294,17 @@ def process_flat_table(content: bytes, db: Session = None):
             if provider:
                 if not inv['nombre']: inv['nombre'] = provider.name
                 
-                # Enrichment: Overwrite only if empty
-                if not inv['email']: inv['email'] = provider.email or ""
+                # Enrichment: Overwrite only if empty OR if file email has multiple and DB has one resolved
+                file_email = inv['email']
+                db_email = provider.email or ""
+                
+                # If DB has a single clean email, and file has multiple/empty, prefer DB
+                has_multiple_in_file = "," in file_email or ";" in file_email
+                has_multiple_in_db = "," in db_email or ";" in db_email
+                
+                if not file_email or (has_multiple_in_file and db_email and not has_multiple_in_db):
+                    inv['email'] = db_email
+                
                 if not inv['direccion']: inv['direccion'] = provider.address or ""
                 if not inv['poblacion']: inv['poblacion'] = provider.city or ""
                 if not inv['cp']: inv['cp'] = provider.zip_code or ""

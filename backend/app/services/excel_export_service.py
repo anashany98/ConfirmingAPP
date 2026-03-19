@@ -17,14 +17,11 @@ def adjust_column_width(ws):
         ws.column_dimensions[get_column_letter(column[0].column)].width = adjusted_width
 
 def style_header(ws):
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="3b82f6", end_color="3b82f6", fill_type="solid") # Blue-500
-    alignment = Alignment(horizontal="center", vertical="center")
-    
-    for cell in ws[1]:
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = alignment
+    """
+    Removed styling (borders/colors) as requested by the user.
+    Keeping function to avoid breaking signatures.
+    """
+    pass
 
 def generate_excel_from_df(df: pd.DataFrame, sheet_name: str = "Sheet1") -> bytes:
     buffer = io.BytesIO()
@@ -37,8 +34,22 @@ def generate_excel_from_df(df: pd.DataFrame, sheet_name: str = "Sheet1") -> byte
         workbook = writer.book
         worksheet = writer.sheets[sheet_name]
         
-        style_header(worksheet)
+        # style_header(worksheet) # Removed styling
         adjust_column_width(worksheet)
+        worksheet.sheet_view.showGridLines = False # Hide gridlines
+
+        # Explicitly remove all cell borders
+        from openpyxl.styles import Border, Side
+        no_border = Border(
+            left=Side(style=None), 
+            right=Side(style=None), 
+            top=Side(style=None), 
+            bottom=Side(style=None)
+        )
+        
+        for row in worksheet.iter_rows():
+            for cell in row:
+                cell.border = no_border
         
     buffer.seek(0)
     return buffer.read()

@@ -168,14 +168,14 @@ def create_batch(batch_in: BatchInput, db: Session = Depends(get_db)):
                 )
                 db.add(new_provider)
             else:
-                # Fill missing data
-                if not provider.email and data.get('email'): provider.email = data['email']
-                if not provider.address and data.get('direccion'): provider.address = data['direccion']
-                if not provider.city and data.get('poblacion'): provider.city = data['poblacion']
-                if not provider.zip_code and data.get('cp'): provider.zip_code = data['cp']
-                if not provider.country and data.get('pais'): provider.country = data['pais']
-                if not provider.iban and data.get('cuenta'): provider.iban = data['cuenta']
-                if not provider.phone and provider_phone: provider.phone = provider_phone
+                # Update provider with latest data from current batch (authoritative)
+                if data.get('email'): provider.email = data['email']
+                if data.get('direccion'): provider.address = data['direccion']
+                if data.get('poblacion'): provider.city = data['poblacion']
+                if data.get('cp'): provider.zip_code = data['cp']
+                if data.get('pais'): provider.country = data['pais']
+                if data.get('cuenta'): provider.iban = data['cuenta']
+                if provider_phone: provider.phone = provider_phone
     
     db.commit()
     db.refresh(db_batch)
@@ -241,9 +241,9 @@ def export_batch(batch_id: int, db: Session = Depends(get_db)):
                 f.write(f"\n[ERROR GENERATING EXCEL]: {str(e)}\n{traceback.format_exc()}\n")
             raise HTTPException(status_code=500, detail=f"Error generando Excel: {str(e)}")
         
-        # Filename: [CreationDate]_CONFIRMING_[DueDate]
-        creation_date_str = batch.created_at.strftime('%d-%m-%Y') if batch.created_at else datetime.now().strftime('%d-%m-%Y')
-        due_date_str = batch.payment_date.strftime('%d-%m-%Y') if batch.payment_date else "SinVencimiento"
+        # Filename: [CreationDate]_CONFIRMING_[DueDate] (ISO format for better sorting)
+        creation_date_str = batch.created_at.strftime('%Y-%m-%d') if batch.created_at else datetime.now().strftime('%Y-%m-%d')
+        due_date_str = batch.payment_date.strftime('%Y-%m-%d') if batch.payment_date else "SinVencimiento"
         filename = f"{creation_date_str}_CONFIRMING_{due_date_str}.xlsx"
         
         # Check for export path in settings
