@@ -57,7 +57,7 @@ services:
       - "8095:8095"
     labels:
       - traefik.enable=true
-      - traefik.http.routers.frontend.rule=Host(`confirming.egeadev.cloud`)
+      - traefik.http.routers.frontend.rule=Host(`app.confirming.egeadev.cloud`)
       - traefik.http.services.frontend.loadbalancer.server.port=8095
     networks:
       - coolify
