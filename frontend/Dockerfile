@@ -19,15 +19,13 @@ FROM nginx:alpine
 # Remove default nginx html contents
 RUN rm -rf /usr/share/nginx/html/*
 
+# Copy built assets from build stage to nginx html directory
+COPY --from=build /app/dist /usr/share/nginx/html
+
 # Copy nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy a script that will copy built assets to nginx html directory on container start
-COPY copy-assets.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/copy-assets.sh
-
-# Set the entrypoint to our script
-ENTRYPOINT ["/usr/local/bin/copy-assets.sh"]
-
 # Explicitly expose port 8095
 EXPOSE 8095
+
+CMD ["nginx", "-g", "daemon off;"]
