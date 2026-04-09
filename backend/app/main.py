@@ -24,6 +24,7 @@ app.add_middleware(
         "http://localhost:8095",
         "http://127.0.0.1:8095",
         "https://confirming.egeadev.cloud",
+        "https://app.confirming.egeadev.cloud",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -52,6 +53,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         "http://localhost:8095",
         "http://127.0.0.1:8095",
         "https://confirming.egeadev.cloud",
+        "https://app.confirming.egeadev.cloud",
     ]
     
     headers = {}
