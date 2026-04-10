@@ -21,14 +21,14 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: always
-    container_name: confirming_backend_v2
+    # container_name: confirming_backend_v2
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-postgres}
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "8000:8000"
+    # ports:
+    #   - "8000:8000"
     labels:
       - traefik.enable=true
       - traefik.http.routers.confirming-api.rule=Host(`api-confirming.egeadev.cloud`)
@@ -48,13 +48,13 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL:-https://api-confirming.egeadev.cloud}
     restart: always
-    container_name: confirming_frontend_v2
+    # container_name: confirming_frontend_v2
     environment:
       NODE_ENV: production
     depends_on:
       - backend
-    ports:
-      - "80:80"
+    # ports:
+    #   - "80:80"
     labels:
       - traefik.enable=true
       - traefik.http.routers.confirming-web.rule=Host(`app.confirming.egeadev.cloud`)
