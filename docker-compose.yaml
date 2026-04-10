@@ -49,19 +49,22 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL:-https://api-confirming.egeadev.cloud}
     restart: always
-    # container_name: confirming_frontend_v2
     environment:
       NODE_ENV: production
     depends_on:
       - backend
-    # ports:
-    #   - "80:80"
     labels:
       - traefik.enable=true
       - traefik.http.routers.confirming-web.rule=Host(`app.confirming.egeadev.cloud`)
       - traefik.http.services.confirming-web.loadbalancer.server.port=80
     networks:
       - coolify
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
 volumes:
   postgres_data:
