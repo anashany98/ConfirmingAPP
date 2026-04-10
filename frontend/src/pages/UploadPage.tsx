@@ -10,12 +10,19 @@ import { useNavigate } from 'react-router-dom'
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 interface Invoice {
-    id: number
+    id?: number
     cif: string
-    nombre: string
-    cuenta: string
-    importe: number
+    nombre?: string
+    cuenta?: string
+    importe?: number
     email?: string
+    direccion?: string
+    poblacion?: string
+    cp?: string
+    pais?: string
+    phone?: string
+    factura?: string
+    fecha_vencimiento?: string
     status: 'VALID' | 'WARNING' | 'ERROR'
     validation_message: string
     iban_mismatch?: boolean
@@ -23,7 +30,6 @@ interface Invoice {
     duplicate_status?: string
     duplicate_message?: string
     duplicate_count?: number
-    [key: string]: unknown
 }
 
 export default function UploadPage() {
@@ -169,11 +175,11 @@ export default function UploadPage() {
         onError: (error: { response?: { status?: number; data?: { detail?: string } }; message?: string }) => {
             console.error(error)
             if (error.response?.status === 409) {
-                setDuplicateMessage(error.response.data.detail)
+                setDuplicateMessage(error.response.data?.detail || '')
                 setShowDuplicateModal(true)
                 return
             }
-            const msg = error.response?.data?.detail || error.message
+            const msg = error.response?.data?.detail || error.message || 'Error desconocido'
             toast.error(`Error: ${msg}`)
         }
     })
@@ -999,10 +1005,11 @@ function IbanMismatchModal({ invoices, onResolve }: { invoices: Invoice[], onRes
     )
 }
 
-function MissingInfoModal({ invoices, onResolve }: { invoices: Invoice[], onResolve: (updates: Record<string, string>[]) => void }) {
+function MissingInfoModal({ invoices, onResolve }: { invoices: Invoice[], onResolve: (updates: { id: number; nombre: string; direccion: string; poblacion: string; cp: string; pais: string; email: string; cuenta: string; phone: string }[]) => void }) {
     // Group by CIF
     const groups: Record<string, { representative: Invoice, ids: number[] }> = {}
     invoices.forEach(inv => {
+        if (inv.id === undefined) return
         if (!groups[inv.cif]) {
             groups[inv.cif] = { representative: inv, ids: [] }
         }

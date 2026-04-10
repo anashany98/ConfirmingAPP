@@ -7,13 +7,13 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY . .
 
 # Build argument for API URL
-ARG VITE_API_URL=https://api.confirming.com
+ARG VITE_API_URL=https://api-confirming.egeadev.cloud
 ENV VITE_API_URL=$VITE_API_URL
 
 # Build the app

@@ -647,7 +647,7 @@ function MutedPlaceholder({ label }: { label: string }) {
   return <div className="text-sm text-slate-500 dark:text-slate-400 py-10 text-center">{label}</div>
 }
 
-function KPICard({ title, value, icon: Icon, color, bg }: { title: string; value: string; icon: ComponentType<{ size?: number }>; color: string; bg: string }) {
+function KPICard({ title, value, icon: Icon, color, bg }: { title: string; value: React.ReactNode; icon: ComponentType<{ size?: number }>; color: string; bg: string }) {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 flex items-center justify-between">
       <div>
