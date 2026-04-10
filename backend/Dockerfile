@@ -30,6 +30,7 @@ FROM python:3.11-slim-bookworm
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     libjpeg62-turbo \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security

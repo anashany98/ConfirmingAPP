@@ -3,15 +3,21 @@ import io
 import re
 import traceback
 import logging
+import os
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from ..models import Provider
 from ..services.duplicate_service import annotate_import_duplicates
 from ..utils.validators import validate_iban, validate_spanish_cif
 
-# Setup logger
-logging.basicConfig(filename='import_error.log', level=logging.ERROR)
-
+# Setup logger - write to /app/logs instead of /app
+log_dir = '/app/logs'
+os.makedirs(log_dir, exist_ok=True)
+logging.basicConfig(
+    filename=os.path.join(log_dir, 'import_error.log'),
+    level=logging.ERROR,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 def process_excel_file(content: bytes, db: Session | None = None):
     """
@@ -25,7 +31,8 @@ def process_excel_file(content: bytes, db: Session | None = None):
         df_scan = pd.read_excel(io.BytesIO(content), header=None, nrows=15)
         
         is_factusol_report = False
-        with open("debug_manual.log", "a") as f: 
+        debug_log_path = os.path.join(log_dir, 'debug_manual.log')
+        with open(debug_log_path, "a") as f: 
             f.write("Scanning for Factusol signature...\n")
             for i in range(len(df_scan)):
                 row_list = [str(x) for x in df_scan.iloc[i].values]
@@ -42,7 +49,7 @@ def process_excel_file(content: bytes, db: Session | None = None):
             df = pd.read_excel(io.BytesIO(content), header=None)
             return process_factusol_report(df, db)
         else:
-            with open("debug_manual.log", "a") as f: f.write("--> No signature. Falling back to simple table.\n")
+            with open(debug_log_path, "a") as f: f.write("--> No signature. Falling back to simple table.\n")
             return process_flat_table(content, db)
 
     except Exception as e:
