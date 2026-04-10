@@ -28,15 +28,15 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "5055:5055"
+      - "8000:8000"
     labels:
       - traefik.enable=true
       - traefik.http.routers.confirming-api.rule=Host(`api-confirming.egeadev.cloud`)
-      - traefik.http.services.confirming-api.loadbalancer.server.port=5055
+      - traefik.http.services.confirming-api.loadbalancer.server.port=8000
     networks:
       - coolify
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5055/docs')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -54,11 +54,11 @@ services:
     depends_on:
       - backend
     ports:
-      - "8095:8095"
+      - "80:80"
     labels:
       - traefik.enable=true
       - traefik.http.routers.confirming-web.rule=Host(`app.confirming.egeadev.cloud`)
-      - traefik.http.services.confirming-web.loadbalancer.server.port=8095
+      - traefik.http.services.confirming-web.loadbalancer.server.port=80
     networks:
       - coolify
 
