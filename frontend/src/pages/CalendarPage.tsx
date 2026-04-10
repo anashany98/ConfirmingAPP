@@ -82,7 +82,7 @@ export default function CalendarPage() {
         }
 
         return days
-    }, [currentDate])
+    }, [currentDate, firstDayOfMonth, lastDayOfMonth])
 
     // Group batches by date
     const batchesByDate = useMemo(() => {

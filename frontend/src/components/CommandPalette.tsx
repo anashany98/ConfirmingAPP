@@ -88,7 +88,7 @@ export default function CommandPalette() {
                                         className="h-12 w-full border-0 bg-transparent pl-11 pr-4 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:ring-0 sm:text-sm"
                                         placeholder="Buscar proveedores, remesas, facturas..."
                                         onChange={(event) => setQuery(event.target.value)}
-                                        displayValue={(item: any) => item?.title}
+                                        displayValue={(item: { title?: string } | null) => item?.title ?? ''}
                                         autoComplete="off"
                                     />
                                     {isLoading && (

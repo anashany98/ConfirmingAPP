@@ -62,7 +62,7 @@ export default function UsersHelper() {
             setNewUser({ username: '', password: '', email: '' })
             toast.success('Usuario creado correctamente')
         },
-        onError: (err: any) => toast.error(err.response?.data?.detail || 'Error creando usuario')
+        onError: (err: { response?: { data?: { detail?: string } } }) => toast.error(err.response?.data?.detail || 'Error creando usuario')
     })
 
     const deleteMutation = useMutation({
@@ -74,7 +74,7 @@ export default function UsersHelper() {
             setDeleteId(null)
             toast.success('Usuario eliminado')
         },
-        onError: (err: any) => toast.error(err.response?.data?.detail || 'Error eliminando usuario')
+        onError: (err: { response?: { data?: { detail?: string } } }) => toast.error(err.response?.data?.detail || 'Error eliminando usuario')
     })
 
     const resetMutation = useMutation({
@@ -87,7 +87,7 @@ export default function UsersHelper() {
             setNewPassword('')
             toast.success('Contraseña reseteada')
         },
-        onError: (err: any) => toast.error(err.response?.data?.detail || 'Error reseteando contraseña')
+        onError: (err: { response?: { data?: { detail?: string } } }) => toast.error(err.response?.data?.detail || 'Error reseteando contraseña')
     })
 
     const changeMyPasswordMutation = useMutation({
@@ -103,7 +103,7 @@ export default function UsersHelper() {
             toast.success('Tu contraseña ha sido actualizada. Por favor inicia sesión de nuevo.')
             logout()
         },
-        onError: (err: any) => toast.error(err.response?.data?.detail || 'Error cambiando contraseña')
+        onError: (err: { response?: { data?: { detail?: string } } }) => toast.error(err.response?.data?.detail || 'Error cambiando contraseña')
     })
 
     if (isLoading) return <div className="p-8 text-center text-slate-500">Cargando usuarios...</div>

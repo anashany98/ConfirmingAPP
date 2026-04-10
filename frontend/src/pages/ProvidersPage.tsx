@@ -94,7 +94,7 @@ export default function ProvidersPage() {
             queryClient.invalidateQueries({ queryKey: ['providers'] })
             setTimeout(() => setUploadSuccess(null), 5000)
         },
-        onError: (err: any) => setUploadError(err.response?.data?.detail || "Error al subir")
+        onError: (err: { response?: { data?: { detail?: string } } }) => setUploadError(err.response?.data?.detail || "Error al subir")
     })
 
     const createMutation = useMutation({

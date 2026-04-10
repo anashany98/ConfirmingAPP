@@ -54,8 +54,10 @@ export default function SettingsPage() {
     })
 
     useEffect(() => {
-        if (settingsData) setFormData(settingsData)
-    }, [settingsData])
+        if (settingsData && !formData) {
+            setFormData(settingsData)
+        }
+    }, [settingsData, formData])
 
     const mutation = useMutation({
         mutationFn: async (newData: Settings) => {
@@ -69,7 +71,7 @@ export default function SettingsPage() {
             queryClient.invalidateQueries({ queryKey: ['settings'] })
             alert('Configuración guardada correctamente')
         },
-        onError: (_err: any) => {
+        onError: () => {
             alert('Error guardando configuración')
         }
     })

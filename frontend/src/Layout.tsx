@@ -1,11 +1,11 @@
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { LayoutDashboard, Upload, History, FileText, Users, Calendar, Search, LogOut } from 'lucide-react'
 import { useAuth } from './lib/auth'
-import { clsx } from 'clsx'
+import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import CommandPalette from './components/CommandPalette'
 
-function cn(...inputs: any[]) {
+function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs))
 }
 

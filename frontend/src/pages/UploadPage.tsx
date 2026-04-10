@@ -23,7 +23,7 @@ interface Invoice {
     duplicate_status?: string
     duplicate_message?: string
     duplicate_count?: number
-    [key: string]: any
+    [key: string]: unknown
 }
 
 export default function UploadPage() {
@@ -166,7 +166,7 @@ export default function UploadPage() {
 
             runValidationSequence(data.invoices)
         },
-        onError: (error: any) => {
+        onError: (error: { response?: { status?: number; data?: { detail?: string } }; message?: string }) => {
             console.error(error)
             if (error.response?.status === 409) {
                 setDuplicateMessage(error.response.data.detail)
@@ -999,7 +999,7 @@ function IbanMismatchModal({ invoices, onResolve }: { invoices: Invoice[], onRes
     )
 }
 
-function MissingInfoModal({ invoices, onResolve }: { invoices: Invoice[], onResolve: (updates: any[]) => void }) {
+function MissingInfoModal({ invoices, onResolve }: { invoices: Invoice[], onResolve: (updates: Record<string, string>[]) => void }) {
     // Group by CIF
     const groups: Record<string, { representative: Invoice, ids: number[] }> = {}
     invoices.forEach(inv => {
@@ -1015,7 +1015,7 @@ function MissingInfoModal({ invoices, onResolve }: { invoices: Invoice[], onReso
 
     // Init state
     useState(() => {
-        const initial: any = {}
+        const initial: Record<string, { nombre: string, direccion: string, poblacion: string, cp: string, pais: string, email: string, cuenta: string, phone: string }> = {}
         groupKeys.forEach(cif => {
             const rep = groups[cif].representative
             initial[cif] = {
@@ -1053,7 +1053,7 @@ function MissingInfoModal({ invoices, onResolve }: { invoices: Invoice[], onReso
             if (!form.cuenta) { alert(`Falta Cuenta IBAN para ${cif}`); return; }
         }
 
-        const updates: any[] = []
+        const updates: { id: number; nombre: string; direccion: string; poblacion: string; cp: string; pais: string; email: string; cuenta: string; phone: string }[] = []
 
         groupKeys.forEach(cif => {
             const form = forms[cif]

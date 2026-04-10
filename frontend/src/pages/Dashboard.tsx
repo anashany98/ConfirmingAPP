@@ -647,7 +647,7 @@ function MutedPlaceholder({ label }: { label: string }) {
   return <div className="text-sm text-slate-500 dark:text-slate-400 py-10 text-center">{label}</div>
 }
 
-function KPICard({ title, value, icon: Icon, color, bg }: any) {
+function KPICard({ title, value, icon: Icon, color, bg }: { title: string; value: string; icon: ComponentType<{ size?: number }>; color: string; bg: string }) {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 flex items-center justify-between">
       <div>
@@ -661,13 +661,13 @@ function KPICard({ title, value, icon: Icon, color, bg }: any) {
   )
 }
 
-function AdvancedTooltip({ active, payload, label }: any) {
+function AdvancedTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ color?: string; name?: string; dataKey?: string; value?: number }>; label?: string }) {
   if (active && payload && payload.length) {
     return (
       <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-700">
         <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">{label}</p>
         <div className="space-y-1">
-          {payload.map((item: any) => (
+          {payload.map((item) => (
             <div key={item.dataKey} className="text-sm font-medium text-slate-800 dark:text-slate-100 flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: item.color }} />
               <span>{item.name || item.dataKey}: {formatCurrency(Number(item.value || 0))}</span>

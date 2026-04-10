@@ -17,7 +17,7 @@ interface Batch {
     status: string
     uploaded_to_bank?: boolean
     total_amount?: number
-    invoices: any[] // Just for count
+    invoices: { id: number }[]
 }
 
 interface ImportLog {
@@ -130,9 +130,10 @@ export default function HistoryPage() {
             link.click();
             link.remove();
             toast.success("Archivo descargado")
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error)
-            toast.error("Error al exportar: " + (error.message || "Error desconocido"))
+            const errMsg = error instanceof Error ? error.message : "Error desconocido"
+            toast.error("Error al exportar: " + errMsg)
         }
     }
 
@@ -153,7 +154,7 @@ export default function HistoryPage() {
             link.click();
             link.remove();
             toast.success("PDF descargado")
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error)
             toast.error("Error al generar PDF")
         }
@@ -171,8 +172,9 @@ export default function HistoryPage() {
             queryClient.invalidateQueries({ queryKey: ['batches'] })
             setBatchToDelete(null)
         },
-        onError: (error: any) => {
-            toast.error('Error al eliminar la remesa: ' + error.message)
+        onError: (error: unknown) => {
+            const errMsg = error instanceof Error ? error.message : 'Error desconocido'
+            toast.error('Error al eliminar la remesa: ' + errMsg)
         }
     })
 

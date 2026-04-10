@@ -38,8 +38,9 @@ export default function LoginPage() {
             login(data.access_token);
             toast.success('Sesión iniciada correctamente');
             navigate(from, { replace: true });
-        } catch (error: any) {
-            toast.error(error.message || 'Error al iniciar sesión');
+        } catch (error: unknown) {
+            const errMsg = error instanceof Error ? error.message : 'Error desconocido'
+            toast.error(errMsg || 'Error al iniciar sesión');
         } finally {
             setIsLoading(false);
         }
