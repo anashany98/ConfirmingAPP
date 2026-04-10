@@ -7,6 +7,7 @@ from ..models import Provider
 from ..schemas import Provider as ProviderSchema, ProviderCreate
 import pandas as pd
 import io
+from datetime import datetime, timedelta
 
 router = APIRouter(
     prefix="/providers", 
@@ -227,10 +228,44 @@ from pydantic import BaseModel
 from typing import Optional
 from ..models import Invoice, Batch
 from sqlalchemy import func
+from ..services.duplicate_service import summarize_duplicate_groups, build_duplicate_key
+
 
 class Insight(BaseModel):
-    type: str # 'positive', 'warning', 'info'
+    type: str
     message: str
+
+
+class ProviderMonthlyVolume(BaseModel):
+    label: str
+    amount: float
+    invoices: int
+
+
+class DuplicateGroup(BaseModel):
+    reference: str
+    amount: float
+    due_date: Optional[str] = None
+    occurrences: int
+    total_amount: float
+    batch_ids: List[int] = []
+    invoice_ids: List[int] = []
+
+
+class ProviderInvoiceItem(BaseModel):
+    id: int
+    cif: str
+    nombre: Optional[str] = None
+    factura: Optional[str] = None
+    importe: float
+    fecha_vencimiento: Optional[datetime] = None
+    status: str
+    batch_id: Optional[int] = None
+    batch_name: Optional[str] = None
+    payment_date: Optional[datetime] = None
+    duplicate_status: Optional[str] = None
+    duplicate_message: Optional[str] = None
+
 
 class ProviderStats(BaseModel):
     cif: str
@@ -239,64 +274,128 @@ class ProviderStats(BaseModel):
     total_invoices: int
     last_payment_date: Optional[str] = None
     average_amount: float
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    zip_code: Optional[str] = None
+    country: Optional[str] = None
+    iban: Optional[str] = None
+    swift: Optional[str] = None
+    updated_at: Optional[str] = None
+    next_due_date: Optional[str] = None
+    upcoming_due_amount: float = 0.0
+    upcoming_invoices_count: int = 0
+    overdue_invoices_count: int = 0
+    duplicate_invoices_count: int = 0
+    duplicate_groups: List[DuplicateGroup] = []
+    monthly_volume: List[ProviderMonthlyVolume] = []
     insights: List[Insight] = []
+
 
 @router.get("/{cif}/stats", response_model=ProviderStats)
 def get_provider_stats(cif: str, db: Session = Depends(get_db)):
-    # Get basic info (Name from latest invoice to be sure, or Provider table)
-    # Prefer Provider table if exists
     provider = db.query(Provider).filter(Provider.cif == cif).first()
-    
-    # Fallback to invoice name if provider not in DB but has invoices?
-    # Or just use latest invoice name
     latest_invoice = db.query(Invoice).filter(Invoice.cif == cif).order_by(Invoice.id.desc()).first()
 
     if not latest_invoice and not provider:
-         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
 
-    name = provider.name if provider and provider.name else (latest_invoice.nombre if latest_invoice else "Desconocido")
+    provider_name = provider.name if provider is not None else None
+    name = provider_name or (latest_invoice.nombre if latest_invoice else "Desconocido")
+    provider_invoices = db.query(Invoice).filter(Invoice.cif == cif).order_by(Invoice.id.desc()).all()
 
-    # Aggregate
     stats = db.query(
         func.sum(Invoice.importe),
         func.count(Invoice.id),
         func.avg(Invoice.importe)
     ).filter(Invoice.cif == cif).first()
-    
-    total_amount = stats[0] or 0.0
-    total_invoices = stats[1] or 0
-    avg_amount = stats[2] or 0.0
-    
-    # Last Payment Date (From Batch payment_date)
+
+    total_amount = (stats[0] if stats else 0.0) or 0.0
+    total_invoices = (stats[1] if stats else 0) or 0
+    avg_amount = (stats[2] if stats else 0.0) or 0.0
+
     last_batch = db.query(Batch).join(Invoice).filter(Invoice.cif == cif).filter(Batch.payment_date != None).order_by(Batch.payment_date.desc()).first()
     last_payment = last_batch.payment_date.strftime("%Y-%m-%d") if last_batch and last_batch.payment_date else None
 
-    # GENERATE AI INSIGHTS
-    insights = []
-    
-    # 1. VIP Provider
-    if total_amount > 50000:
-        insights.append(Insight(type="positive", message="Proveedor VIP: Volumen acumulado superior a 50k€"))
-    
-    # 2. Frequent Provider
-    if total_invoices > 12:
-        insights.append(Insight(type="info", message="Proveedor Recurrente: Más de 12 facturas procesadas"))
-        
-    # 3. High Average Ticket
-    if avg_amount > 4000:
-        insights.append(Insight(type="warning", message=f"Ticket Medio Alto: {avg_amount:,.2f}€ por factura"))
+    today = datetime.now().date()
+    next_30_days = today + timedelta(days=30)
+    next_due_invoice = (
+        db.query(Invoice)
+        .filter(Invoice.cif == cif, Invoice.fecha_vencimiento != None, func.date(Invoice.fecha_vencimiento) >= today)
+        .order_by(Invoice.fecha_vencimiento.asc())
+        .first()
+    )
+    next_due_date = next_due_invoice.fecha_vencimiento.strftime("%Y-%m-%d") if next_due_invoice and next_due_invoice.fecha_vencimiento else None
 
-    # 4. Inactive Check
-    from datetime import datetime
+    upcoming_stats = db.query(
+        func.sum(Invoice.importe),
+        func.count(Invoice.id),
+    ).filter(
+        Invoice.cif == cif,
+        Invoice.fecha_vencimiento != None,
+        func.date(Invoice.fecha_vencimiento) >= today,
+        func.date(Invoice.fecha_vencimiento) <= next_30_days,
+    ).first()
+    upcoming_due_amount = (upcoming_stats[0] if upcoming_stats else 0.0) or 0.0
+    upcoming_invoices_count = (upcoming_stats[1] if upcoming_stats else 0) or 0
+
+    overdue_invoices_count = db.query(Invoice).filter(
+        Invoice.cif == cif,
+        Invoice.fecha_vencimiento != None,
+        func.date(Invoice.fecha_vencimiento) < today,
+    ).count()
+
+    duplicate_groups = summarize_duplicate_groups(provider_invoices)
+    duplicate_invoices_count = sum(group["occurrences"] for group in duplicate_groups)
+
+    six_months_ago = datetime.utcnow() - timedelta(days=180)
+    monthly_raw = (
+        db.query(Batch.created_at, func.sum(Invoice.importe), func.count(Invoice.id))
+        .join(Invoice)
+        .filter(Invoice.cif == cif, Batch.created_at >= six_months_ago)
+        .group_by(Batch.created_at)
+        .all()
+    )
+    monthly_map = {}
+    current = datetime.utcnow()
+    for i in range(5, -1, -1):
+        month_date = current - timedelta(days=i * 30)
+        month_key = month_date.strftime("%Y-%m")
+        monthly_map[month_key] = {"label": month_date.strftime("%b"), "amount": 0.0, "invoices": 0}
+
+    for created_at, amount, count in monthly_raw:
+        if not created_at:
+            continue
+        month_key = created_at.strftime("%Y-%m")
+        if month_key in monthly_map:
+            monthly_map[month_key]["amount"] += float(amount or 0.0)
+            monthly_map[month_key]["invoices"] += int(count or 0)
+
+    insights = []
+    if total_amount > 50000:
+        insights.append(Insight(type="positive", message="Proveedor VIP: volumen acumulado superior a 50k€"))
+    if total_invoices > 12:
+        insights.append(Insight(type="info", message="Proveedor recurrente: más de 12 facturas procesadas"))
+    if avg_amount > 4000:
+        insights.append(Insight(type="warning", message=f"Ticket medio alto: {avg_amount:,.2f}€ por factura"))
+
     if last_payment:
         last_date = datetime.strptime(last_payment, "%Y-%m-%d").date()
         days_diff = (datetime.now().date() - last_date).days
         if days_diff > 90:
-             insights.append(Insight(type="warning", message=f"Inactivo: Último pago hace {days_diff} días"))
-    else:
-        # Never paid?
-        if total_invoices > 0:
-             insights.append(Insight(type="info", message="Pendiente de primer pago confirmado"))
+            insights.append(Insight(type="warning", message=f"Inactivo: último pago hace {days_diff} días"))
+    elif total_invoices > 0:
+        insights.append(Insight(type="info", message="Pendiente de primer pago confirmado"))
+
+    if not (provider and provider.email):
+        insights.append(Insight(type="warning", message="Ficha incompleta: falta email del proveedor"))
+    if not (provider and provider.iban):
+        insights.append(Insight(type="warning", message="Ficha incompleta: falta IBAN maestro"))
+    if duplicate_invoices_count:
+        insights.append(Insight(type="warning", message=f"Se han detectado {duplicate_invoices_count} facturas duplicadas en histórico"))
+    if upcoming_due_amount > 10000:
+        insights.append(Insight(type="info", message=f"Exposición próxima: {upcoming_due_amount:,.2f}€ vencen en 30 días"))
 
     return {
         "cif": cif,
@@ -305,11 +404,52 @@ def get_provider_stats(cif: str, db: Session = Depends(get_db)):
         "total_invoices": total_invoices,
         "last_payment_date": last_payment,
         "average_amount": avg_amount,
+        "email": provider.email if provider else (latest_invoice.email if latest_invoice else None),
+        "phone": provider.phone if provider else None,
+        "address": provider.address if provider else (latest_invoice.direccion if latest_invoice else None),
+        "city": provider.city if provider else (latest_invoice.poblacion if latest_invoice else None),
+        "zip_code": provider.zip_code if provider else (latest_invoice.cp if latest_invoice else None),
+        "country": provider.country if provider else (latest_invoice.pais if latest_invoice else None),
+        "iban": provider.iban if provider else (latest_invoice.cuenta if latest_invoice else None),
+        "swift": provider.swift if provider else None,
+        "updated_at": provider.updated_at.isoformat() if provider and provider.updated_at else None,
+        "next_due_date": next_due_date,
+        "upcoming_due_amount": upcoming_due_amount,
+        "upcoming_invoices_count": upcoming_invoices_count,
+        "overdue_invoices_count": overdue_invoices_count,
+        "duplicate_invoices_count": duplicate_invoices_count,
+        "duplicate_groups": duplicate_groups,
+        "monthly_volume": list(monthly_map.values()),
         "insights": insights
     }
 
-from ..schemas import Invoice as InvoiceSchema
-@router.get("/{cif}/invoices", response_model=List[InvoiceSchema])
+
+@router.get("/{cif}/invoices", response_model=List[ProviderInvoiceItem])
 def get_provider_invoices(cif: str, db: Session = Depends(get_db)):
     invoices = db.query(Invoice).filter(Invoice.cif == cif).order_by(Invoice.id.desc()).all()
-    return invoices
+    duplicate_counts = {}
+    for invoice in invoices:
+        key = build_duplicate_key(invoice)
+        duplicate_counts[key] = duplicate_counts.get(key, 0) + 1
+
+    response = []
+    for invoice in invoices:
+        key = build_duplicate_key(invoice)
+        is_duplicate = duplicate_counts.get(key, 0) > 1
+        response.append(
+            {
+                "id": invoice.id,
+                "cif": invoice.cif,
+                "nombre": invoice.nombre,
+                "factura": invoice.factura,
+                "importe": invoice.importe or 0.0,
+                "fecha_vencimiento": invoice.fecha_vencimiento,
+                "status": invoice.status,
+                "batch_id": invoice.batch_id,
+                "batch_name": invoice.batch.name if invoice.batch else None,
+                "payment_date": invoice.batch.payment_date if invoice.batch else None,
+                "duplicate_status": "HISTORICAL" if is_duplicate else None,
+                "duplicate_message": "Coincide con otra factura histórica del mismo proveedor" if is_duplicate else None,
+            }
+        )
+    return response

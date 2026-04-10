@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query, Response, HTTPException
 from ..routers.auth_router import get_current_user
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import date, datetime, timedelta
 import calendar
 from ..database import get_db
-from ..models import Invoice
+from ..models import Invoice, Batch
 from ..services.pdf_service import generate_monthly_report_pdf
+from ..services.duplicate_service import summarize_duplicate_groups
 
 router = APIRouter(
     prefix="/reports", 
@@ -99,7 +101,7 @@ def get_monthly_pdf(
     )
 
 from ..services.excel_export_service import generate_excel_from_df, generate_dashboard_excel
-from ..routers.batch_router import get_dashboard_stats # Reuse logic? Or replicate? Reuse is better but circular import risk.
+from ..routers.batch_router import get_dashboard_stats, get_treasury_simulator
 # Creating a dedicated helper for params might be better. 
 # For now, let's replicate logic or import function if safe.
 # batch_router imports database, models... reports_router does too. 
@@ -114,11 +116,77 @@ from ..routers.batch_router import get_dashboard_stats # Reuse logic? Or replica
 
 @router.get("/excel/dashboard")
 def export_dashboard_excel(db: Session = Depends(get_db)):
-    # 1. Get Stats (Reuse existing logic)
     stats = get_dashboard_stats(db)
-    
-    # 2. Generate Excel
-    excel_content = generate_dashboard_excel(stats)
+    treasury = get_treasury_simulator(db=db)
+
+    top_providers = []
+    top_provider_rows = (
+        db.query(
+            Invoice.cif,
+            func.max(Invoice.nombre),
+            func.count(Invoice.id),
+            func.sum(Invoice.importe),
+            func.min(Invoice.fecha_vencimiento),
+            func.max(Invoice.fecha_vencimiento),
+        )
+        .group_by(Invoice.cif)
+        .order_by(func.sum(Invoice.importe).desc())
+        .limit(10)
+        .all()
+    )
+    for cif, name, invoice_count, total_amount, first_due_date, last_due_date in top_provider_rows:
+        top_providers.append(
+            {
+                "cif": cif,
+                "name": name or cif,
+                "invoice_count": invoice_count or 0,
+                "total_amount": float(total_amount or 0.0),
+                "first_due_date": first_due_date.strftime("%d/%m/%Y") if first_due_date else "-",
+                "last_due_date": last_due_date.strftime("%d/%m/%Y") if last_due_date else "-",
+            }
+        )
+
+    recent_batches = []
+    recent_batch_rows = (
+        db.query(
+            Batch.id,
+            Batch.name,
+            Batch.status,
+            Batch.created_at,
+            Batch.payment_date,
+            func.count(Invoice.id),
+            func.sum(Invoice.importe),
+        )
+        .outerjoin(Invoice, Invoice.batch_id == Batch.id)
+        .group_by(Batch.id)
+        .order_by(Batch.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    for batch_id, name, status, created_at, payment_date, invoice_count, total_amount in recent_batch_rows:
+        recent_batches.append(
+            {
+                "id": batch_id,
+                "name": name,
+                "status": status.value if hasattr(status, "value") else str(status),
+                "created_at": created_at.strftime("%d/%m/%Y") if created_at else "-",
+                "payment_date": payment_date.strftime("%d/%m/%Y") if payment_date else "-",
+                "invoice_count": invoice_count or 0,
+                "total_amount": float(total_amount or 0.0),
+            }
+        )
+
+    duplicate_groups = summarize_duplicate_groups(db.query(Invoice).all())
+
+    excel_content = generate_dashboard_excel(
+        {
+            "stats": stats,
+            "treasury": treasury,
+            "top_providers": top_providers,
+            "recent_batches": recent_batches,
+            "duplicate_groups": duplicate_groups,
+        }
+    )
     
     filename = f"Dashboard_Confirming_{datetime.now().strftime('%Y%m%d')}.xlsx"
     

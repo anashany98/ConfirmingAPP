@@ -1,36 +1,38 @@
 # Stage 1: Build
-FROM node:20-alpine as build
+FROM node:20-alpine AS builder
 
 WORKDIR /app
+
+# Copy package files
 COPY package*.json ./
-RUN npm install
+
+# Install dependencies
+RUN npm ci
+
+# Copy source code
 COPY . .
 
-# Accept API URL as a build argument
-ARG VITE_API_URL
+# Build argument for API URL
+ARG VITE_API_URL=https://api.confirming.com
 ENV VITE_API_URL=$VITE_API_URL
 
-# Build the app (output to /app/dist)
+# Build the app
 RUN npm run build
 
-# Create a tarball with the built files to transfer to the final image
-RUN tar -cf /tmp/dist.tar -C /app/dist .
-
-# Stage 2: Serve
+# Stage 2: Serve with nginx
 FROM nginx:alpine
 
-# Remove default nginx html contents
-RUN rm -rf /usr/share/nginx/html/*
+# Copy built files
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Extract the built files at runtime (after volumes are mounted)
-COPY --from=build /tmp/dist.tar /tmp/dist.tar
+# Copy nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Create a startup script that extracts files AFTER volumes are mounted
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
+# Expose port
+EXPOSE 80
 
-# Explicitly expose port 8095
-EXPOSE 8095
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost/ || exit 1
 
-CMD ["/start.sh"]
+CMD ["nginx", "-g", "daemon off;"]

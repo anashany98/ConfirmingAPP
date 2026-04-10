@@ -6,13 +6,14 @@ import logging
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from ..models import Provider
+from ..services.duplicate_service import annotate_import_duplicates
 from ..utils.validators import validate_iban, validate_spanish_cif
 
 # Setup logger
 logging.basicConfig(filename='import_error.log', level=logging.ERROR)
 
 
-def process_excel_file(content: bytes, db: Session = None):
+def process_excel_file(content: bytes, db: Session | None = None):
     """
     Process Excel file which can be:
     1. A flat list of invoices (Standard Format).
@@ -50,7 +51,7 @@ def process_excel_file(content: bytes, db: Session = None):
         print(error_msg) # Print to console for user to see
         raise HTTPException(status_code=400, detail=f"Error processing Excel: {str(e)}")
 
-def process_factusol_report(df: pd.DataFrame, db: Session = None):
+def process_factusol_report(df: pd.DataFrame, db: Session | None = None):
     invoices = []
     current_payment_date = None
     
@@ -208,9 +209,9 @@ def process_factusol_report(df: pd.DataFrame, db: Session = None):
                 except:
                     pass
 
-    return invoices
+    return annotate_import_duplicates(invoices, db)
 
-def process_flat_table(content: bytes, db: Session = None):
+def process_flat_table(content: bytes, db: Session | None = None):
     df = pd.read_excel(io.BytesIO(content))
     
     # Normalize headers
@@ -254,6 +255,10 @@ def process_flat_table(content: bytes, db: Session = None):
             "cp": str(row.get(final_col_map.get('ZIP'), '')),
             "pais": str(row.get(final_col_map.get('COUNTRY'), 'ES')),
             "status": "VALID",
+            "validation_message": "",
+            "duplicate_status": None,
+            "duplicate_message": None,
+            "duplicate_count": 0,
             "phone": ""
         }
         
@@ -282,7 +287,7 @@ def process_flat_table(content: bytes, db: Session = None):
         date_val = row.get(final_col_map.get('PAYMENT_DATE'))
         if pd.notna(date_val):
             try:
-                inv['fecha_vencimiento'] = pd.to_datetime(date_val).to_pydatetime()
+                inv['fecha_vencimiento'] = pd.to_datetime(date_val, dayfirst=True).to_pydatetime()
             except:
                 inv['fecha_vencimiento'] = None
         else:
@@ -328,4 +333,4 @@ def process_flat_table(content: bytes, db: Session = None):
              
         data.append(inv)
         
-    return data
+    return annotate_import_duplicates(data, db)

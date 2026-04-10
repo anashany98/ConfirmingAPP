@@ -6,8 +6,9 @@ from typing import List, Optional
 from ..database import get_db
 from ..models import Batch, Invoice, BatchStatus, Provider
 from ..schemas import Batch as BatchSchema, InvoiceCreate, BatchBase
+from ..services.duplicate_service import summarize_duplicate_groups
 from ..services.export_service import generate_bankinter_excel
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 router = APIRouter(
     prefix="/batches", 
@@ -72,8 +73,9 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     # Sort and convert to list
     monthly_volume = sorted(monthly_map.values(), key=lambda x: x["full_date"])
 
+    duplicate_groups = summarize_duplicate_groups(db.query(Invoice).all())
+
     # 4. Cash Flow Projection (Next 4 Weeks)
-    from datetime import timedelta
     today_date = date.today()
     # Normalize to start of week (Monday) or just use relative windows?
     # Let's use relative windows: Week 1, Week 2, Week 3, Week 4 from TODAY.
@@ -102,9 +104,164 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         "processed_batches": total_batches,
         "total_amount": total_amount,
         "issues_count": issues_count,
+        "duplicate_invoices_count": sum(group["occurrences"] for group in duplicate_groups),
         "status_distribution": status_distribution,
         "monthly_volume": monthly_volume,
         "cash_flow_projection": cash_flow
+    }
+
+
+@router.get("/treasury-simulator")
+def get_treasury_simulator(
+    opening_balance: float = 150000,
+    reserve_balance: float = 30000,
+    horizon_weeks: int = 8,
+    payment_delay_days: int = 0,
+    stress_pct: float = 12.5,
+    db: Session = Depends(get_db),
+):
+    horizon_weeks = max(4, min(horizon_weeks, 16))
+    payment_delay_days = max(0, min(payment_delay_days, 45))
+    stress_pct = max(0.0, min(stress_pct, 50.0))
+
+    today = date.today()
+    invoices = (
+        db.query(Invoice, Provider.name)
+        .outerjoin(Provider, Provider.cif == Invoice.cif)
+        .filter(Invoice.fecha_vencimiento != None)
+        .filter(Invoice.status != "ERROR")
+        .all()
+    )
+
+    def build_provider_breakdown(start_range: date, end_range: date, shifted: bool = False):
+        provider_totals = {}
+        for invoice, provider_name in invoices:
+            if not invoice.fecha_vencimiento:
+                continue
+            due_date = invoice.fecha_vencimiento.date()
+            if shifted:
+                due_date = due_date + timedelta(days=payment_delay_days)
+            if start_range <= due_date <= end_range:
+                key = invoice.cif or "SIN-CIF"
+                if key not in provider_totals:
+                    provider_totals[key] = {
+                        "cif": invoice.cif,
+                        "name": provider_name or invoice.nombre or "Proveedor sin nombre",
+                        "amount": 0.0,
+                        "invoices": 0,
+                    }
+                provider_totals[key]["amount"] += float(invoice.importe or 0.0)
+                provider_totals[key]["invoices"] += 1
+        ranked = sorted(provider_totals.values(), key=lambda item: item["amount"], reverse=True)
+        return ranked[:3]
+
+    scheduled_balance = opening_balance
+    delayed_balance = opening_balance
+    stressed_balance = opening_balance
+    stress_multiplier = 1 + (stress_pct / 100)
+    weekly_projection = []
+
+    for index in range(horizon_weeks):
+        week_start = today + timedelta(days=index * 7)
+        week_end = week_start + timedelta(days=6)
+
+        scheduled_amount = 0.0
+        delayed_amount = 0.0
+        for invoice, _provider_name in invoices:
+            if not invoice.fecha_vencimiento:
+                continue
+            due_date = invoice.fecha_vencimiento.date()
+            if week_start <= due_date <= week_end:
+                scheduled_amount += float(invoice.importe or 0.0)
+
+            shifted_due_date = due_date + timedelta(days=payment_delay_days)
+            if week_start <= shifted_due_date <= week_end:
+                delayed_amount += float(invoice.importe or 0.0)
+
+        stressed_amount = scheduled_amount * stress_multiplier
+        scheduled_balance -= scheduled_amount
+        delayed_balance -= delayed_amount
+        stressed_balance -= stressed_amount
+
+        weekly_projection.append(
+            {
+                "label": f"S{index + 1}",
+                "range": f"{week_start.strftime('%d/%m')} - {week_end.strftime('%d/%m')}",
+                "scheduled_amount": round(scheduled_amount, 2),
+                "delayed_amount": round(delayed_amount, 2),
+                "stressed_amount": round(stressed_amount, 2),
+                "scheduled_balance": round(scheduled_balance, 2),
+                "delayed_balance": round(delayed_balance, 2),
+                "stressed_balance": round(stressed_balance, 2),
+                "available_after_reserve": round(scheduled_balance - reserve_balance, 2),
+                "providers": build_provider_breakdown(week_start, week_end),
+            }
+        )
+
+    next_30_days = today + timedelta(days=30)
+    exposure_by_provider = {}
+    for invoice, provider_name in invoices:
+        if not invoice.fecha_vencimiento:
+            continue
+        due_date = invoice.fecha_vencimiento.date()
+        if due_date < today or due_date > next_30_days:
+            continue
+        key = invoice.cif or "SIN-CIF"
+        if key not in exposure_by_provider:
+            exposure_by_provider[key] = {
+                "cif": invoice.cif,
+                "name": provider_name or invoice.nombre or "Proveedor sin nombre",
+                "amount": 0.0,
+                "invoices": 0,
+            }
+        exposure_by_provider[key]["amount"] += float(invoice.importe or 0.0)
+        exposure_by_provider[key]["invoices"] += 1
+
+    top_exposures = sorted(exposure_by_provider.values(), key=lambda item: item["amount"], reverse=True)[:5]
+    upcoming_total = round(sum(item["amount"] for item in top_exposures), 2)
+
+    alerts = []
+    first_shortfall_week = next((week for week in weekly_projection if week["scheduled_balance"] < 0), None)
+    first_reserve_breach = next((week for week in weekly_projection if week["available_after_reserve"] < 0), None)
+    if first_shortfall_week:
+        alerts.append(
+            {
+                "type": "critical",
+                "message": f"El saldo cae por debajo de cero en {first_shortfall_week['range']}.",
+            }
+        )
+    if first_reserve_breach:
+        alerts.append(
+            {
+                "type": "warning",
+                "message": f"La reserva mínima se compromete en {first_reserve_breach['range']}.",
+            }
+        )
+    if top_exposures:
+        largest_exposure = top_exposures[0]
+        if upcoming_total and largest_exposure["amount"] / upcoming_total > 0.35:
+            alerts.append(
+                {
+                    "type": "info",
+                    "message": f"Alta concentración de pagos en {largest_exposure['name']} durante los próximos 30 días.",
+                }
+            )
+
+    return {
+        "opening_balance": opening_balance,
+        "reserve_balance": reserve_balance,
+        "payment_delay_days": payment_delay_days,
+        "stress_pct": stress_pct,
+        "weeks": weekly_projection,
+        "summary": {
+            "scheduled_total": round(sum(week["scheduled_amount"] for week in weekly_projection), 2),
+            "delayed_total": round(sum(week["delayed_amount"] for week in weekly_projection), 2),
+            "stressed_total": round(sum(week["stressed_amount"] for week in weekly_projection), 2),
+            "final_balance": round(weekly_projection[-1]["scheduled_balance"] if weekly_projection else opening_balance, 2),
+            "peak_week": max(weekly_projection, key=lambda week: week["scheduled_amount"], default=None),
+        },
+        "top_exposures": top_exposures,
+        "alerts": alerts,
     }
 
 class BatchInput(BatchBase):
@@ -113,73 +270,80 @@ class BatchInput(BatchBase):
 
 @router.post("/", response_model=BatchSchema)
 def create_batch(batch_in: BatchInput, db: Session = Depends(get_db)):
-    # Check if a global due date was provided
     global_due_date = None
     if batch_in.payment_date:
         global_due_date = datetime.combine(batch_in.payment_date, datetime.min.time())
 
-    # Create Batch
-    db_batch = Batch(
-        name=batch_in.name,
-        file_hash=batch_in.file_hash,
-        payment_date=global_due_date,
-        status=BatchStatus.GENERATED,
-        created_at=datetime.utcnow()
-    )
-    db.add(db_batch)
-    db.commit()
-    db.refresh(db_batch)
-
-    # Create Invoices
-    for inv_data in batch_in.invoices:
-        # Convert InvoiceCreate to DB model
-        data = inv_data.dict()
-        
-        # Extract phone for provider sync (not in Invoice model)
-        provider_phone = data.pop('phone', None)
-        
-        # Override due date if global provided
-        if global_due_date:
-            data['fecha_vencimiento'] = global_due_date
-
-        db_inv = Invoice(
-            **data,
-            batch_id=db_batch.id,
-            # Assume passed invoices are valid if they are being batched, or status passed
-            status="VALID" # Force valid or trust frontend? Trust frontend data but override status if needed
+    try:
+        db_batch = Batch(
+            name=batch_in.name,
+            file_hash=batch_in.file_hash,
+            payment_date=global_due_date,
+            status=BatchStatus.GENERATED,
+            created_at=datetime.utcnow()
         )
-        db.add(db_inv)
+        db.add(db_batch)
+        db.flush()
 
-        # Sync Provider Logic
-        if data.get('cif'):
-            provider = db.query(Provider).filter(Provider.cif == data['cif']).first()
-            if not provider:
-                # Create New Provider
-                new_provider = Provider(
-                    cif=data['cif'],
-                    name=data['nombre'],
-                    email=data['email'],
-                    address=data.get('direccion'),
-                    city=data.get('poblacion'),
-                    zip_code=data.get('cp'),
-                    country=data.get('pais'),
-                    phone=provider_phone,
-                    iban=data.get('cuenta')
-                )
-                db.add(new_provider)
-            else:
-                # Update provider with latest data from current batch (authoritative)
-                if data.get('email'): provider.email = data['email']
-                if data.get('direccion'): provider.address = data['direccion']
-                if data.get('poblacion'): provider.city = data['poblacion']
-                if data.get('cp'): provider.zip_code = data['cp']
-                if data.get('pais'): provider.country = data['pais']
-                if data.get('cuenta'): provider.iban = data['cuenta']
-                if provider_phone: provider.phone = provider_phone
-    
-    db.commit()
-    db.refresh(db_batch)
-    return db_batch
+        for inv_data in batch_in.invoices:
+            data = inv_data.model_dump()
+            provider_phone = data.pop('phone', None)
+            data.pop('duplicate_status', None)
+            data.pop('duplicate_message', None)
+            data.pop('duplicate_count', None)
+
+            invoice_status = data.pop('status', 'VALID') or 'VALID'
+
+            if global_due_date:
+                data['fecha_vencimiento'] = global_due_date
+
+            db_inv = Invoice(
+                **data,
+                batch_id=db_batch.id,
+                status=invoice_status,
+            )
+            db.add(db_inv)
+
+            if data.get('cif'):
+                provider = db.query(Provider).filter(Provider.cif == data['cif']).first()
+                if not provider:
+                    db.add(
+                        Provider(
+                            cif=data['cif'],
+                            name=data['nombre'],
+                            email=data['email'],
+                            address=data.get('direccion'),
+                            city=data.get('poblacion'),
+                            zip_code=data.get('cp'),
+                            country=data.get('pais'),
+                            phone=provider_phone,
+                            iban=data.get('cuenta')
+                        )
+                    )
+                else:
+                    if data.get('nombre'):
+                        provider.name = data['nombre']
+                    if data.get('email'):
+                        provider.email = data['email']
+                    if data.get('direccion'):
+                        provider.address = data['direccion']
+                    if data.get('poblacion'):
+                        provider.city = data['poblacion']
+                    if data.get('cp'):
+                        provider.zip_code = data['cp']
+                    if data.get('pais'):
+                        provider.country = data['pais']
+                    if data.get('cuenta'):
+                        provider.iban = data['cuenta']
+                    if provider_phone:
+                        provider.phone = provider_phone
+
+        db.commit()
+        db.refresh(db_batch)
+        return db_batch
+    except Exception:
+        db.rollback()
+        raise
 
 from ..schemas import PaginatedBatches
 

@@ -20,6 +20,9 @@ interface Invoice {
     validation_message: string
     iban_mismatch?: boolean
     db_iban?: string
+    duplicate_status?: string
+    duplicate_message?: string
+    duplicate_count?: number
     [key: string]: any
 }
 
@@ -257,7 +260,8 @@ export default function UploadPage() {
     const stats = {
         valid: invoices.filter(i => i.status === 'VALID').length,
         warning: invoices.filter(i => i.status === 'WARNING').length,
-        error: invoices.filter(i => i.status === 'ERROR').length
+        error: invoices.filter(i => i.status === 'ERROR').length,
+        duplicates: invoices.filter(i => (i.duplicate_count || 0) > 0).length
     }
 
     return (
@@ -318,6 +322,9 @@ export default function UploadPage() {
                                 <span className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-3 py-1 rounded-full flex gap-1 items-center">
                                     <XCircle size={14} /> {stats.error}
                                 </span>
+                                <span className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-3 py-1 rounded-full flex gap-1 items-center">
+                                    <AlertTriangle size={14} /> {stats.duplicates} duplicados
+                                </span>
                             </div>
 
                             <div className="flex items-center gap-2 mr-4">
@@ -350,12 +357,18 @@ export default function UploadPage() {
                     </div>
 
                     {/* Total Summary Bar */}
-                    <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg border border-slate-200 dark:border-slate-800 mb-4 flex justify-between items-center">
-                        <div>
-                            <span className="text-slate-500 dark:text-slate-400 text-sm font-medium">Facturas a procesar:</span>
-                            <span className="ml-2 font-bold text-slate-900 dark:text-slate-100">{invoices.length}</span>
-                        </div>
-                        <div className="text-right">
+                     <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg border border-slate-200 dark:border-slate-800 mb-4 flex justify-between items-center">
+                         <div>
+                             <span className="text-slate-500 dark:text-slate-400 text-sm font-medium">Facturas a procesar:</span>
+                             <span className="ml-2 font-bold text-slate-900 dark:text-slate-100">{invoices.length}</span>
+                             {stats.duplicates > 0 ? (
+                                 <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 px-3 py-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                                     <AlertTriangle size={12} />
+                                     {stats.duplicates} facturas coinciden con registros existentes o repetidos en el archivo
+                                 </div>
+                             ) : null}
+                         </div>
+                         <div className="text-right">
                             <span className="text-slate-500 dark:text-slate-400 text-sm font-medium">Importe Total:</span>
                             <span className="ml-2 font-mono font-bold text-xl text-slate-900 dark:text-slate-100">
                                 {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(invoices.reduce((sum, inv) => sum + (inv.importe || 0), 0))}
@@ -384,7 +397,16 @@ export default function UploadPage() {
                                             <StatusIcon status={inv.status} />
                                         </td>
                                         <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-400">{inv.cif}</td>
-                                        <td className="px-4 py-3 text-slate-900 dark:text-slate-200 font-medium">{inv.nombre}</td>
+                                        <td className="px-4 py-3 text-slate-900 dark:text-slate-200 font-medium">
+                                            <div className="flex flex-col gap-1">
+                                                <span>{inv.nombre}</span>
+                                                {inv.duplicate_count ? (
+                                                    <span className="inline-flex w-fit items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+                                                        <AlertTriangle size={11} /> posible duplicado
+                                                    </span>
+                                                ) : null}
+                                            </div>
+                                        </td>
                                         <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400 truncate max-w-[150px]" title={inv.email}>
                                             {inv.email || <span className="text-slate-300 italic">No email</span>}
                                         </td>
@@ -392,12 +414,14 @@ export default function UploadPage() {
                                         <td className="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-200">
                                             {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(inv.importe)}
                                         </td>
-                                        <td className="px-4 py-3 text-xs text-slate-500 truncate max-w-xs" title={inv.validation_message}>
-                                            {inv.validation_message && (
-                                                <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
-                                                    <AlertTriangle size={12} /> {inv.validation_message}
-                                                </span>
-                                            )}
+                                        <td className="px-4 py-3 text-xs text-slate-500 max-w-xs" title={inv.validation_message}>
+                                            <div className="flex flex-wrap gap-2 items-center">
+                                                {inv.validation_message ? (
+                                                    <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                                                        <AlertTriangle size={12} /> {inv.validation_message}
+                                                    </span>
+                                                ) : null}
+                                            </div>
                                         </td>
                                         <td className="px-4 py-3">
                                             <button

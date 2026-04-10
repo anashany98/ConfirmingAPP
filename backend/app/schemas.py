@@ -22,6 +22,9 @@ class InvoiceBase(BaseModel):
     fecha_vencimiento: Optional[datetime] = None
     fecha_aplazamiento: Optional[datetime] = None
     phone: Optional[str] = None
+    duplicate_status: Optional[str] = None
+    duplicate_message: Optional[str] = None
+    duplicate_count: Optional[int] = 0
 
 class InvoiceCreate(InvoiceBase):
     pass

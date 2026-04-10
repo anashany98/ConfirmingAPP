@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+
+# Node
+node_modules
+npm-debug.log
+*.log
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Testing
+tests
+coverage
+
+# Docs
+*.md
+docs
+
+# Build
+dist
+build
+
+# Docker
+Dockerfile
+docker-compose*
+
+# Misc
+.env
+.env.local
+.env.*.local

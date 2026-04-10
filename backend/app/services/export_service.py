@@ -1,6 +1,7 @@
 from typing import List
 import pandas as pd
 import io
+from openpyxl.styles import Border, Font, Side
 from ..schemas import Invoice
 from sqlalchemy.orm import Session
 from ..models import Settings
@@ -10,11 +11,10 @@ def generate_bankinter_excel(invoices: List[Invoice], db: Session) -> bytes:
     settings = db.query(Settings).first()
     payer_iban = settings.numero_cuenta_cargo if settings else ""
     
-    # Define exact columns as requested
     columns = [
-        "CIF", "NOMBRE", "EMAIL", "DIRECCION", "CP", "POBLACION", "PAIS", 
+        "CIF", "NOMBRE", "EMAIL", "DIRECCION", "CP", "POBLACION", "PAIS",
         "CUENTA", "IMPORTE", "FACTURA", "FECHA DE VENCIMIENTO", "FECHA DE APLAZAMIENTO",
-        "", "", "CUENTA CONFIRMING", "", "", "", "", "", "FORMA PAGO", "RESIDENCIA", "", "", "PREFIJO"
+        None, None, "CUENTA CONFIRMING", None, None, None, None, None, "FORMA PAGO", None, None, None, "PREFIJO"
     ]
     
     rows = []
@@ -37,7 +37,7 @@ def generate_bankinter_excel(invoices: List[Invoice], db: Session) -> bytes:
             payer_iban,                                 # CUENTA CONFIRMING
             "", "", "", "", "",                         # Empty x5
             "T",                                        # FORMA PAGO
-            "ES",                                       # RESIDENCIA (As seen in sample 'ES')
+            "ES",                                       # Residencia va en columna sin cabecera
             "", "",                                     # Empty x2
             "001"                                       # PREFIJO
         ]
@@ -53,17 +53,17 @@ def generate_bankinter_excel(invoices: List[Invoice], db: Session) -> bytes:
         # Hide standard Excel gridlines
         ws.sheet_view.showGridLines = False
         
-        # Explicitly remove all cell borders (the "lines" the user sees)
-        from openpyxl.styles import Border, Side
         no_border = Border(
             left=Side(style=None), 
             right=Side(style=None), 
             top=Side(style=None), 
             bottom=Side(style=None)
         )
+        calibri_font = Font(name='Calibri', size=11, bold=False)
         
         for row in ws.iter_rows():
             for cell in row:
                 cell.border = no_border
+                cell.font = calibri_font
     
     return output.getvalue()

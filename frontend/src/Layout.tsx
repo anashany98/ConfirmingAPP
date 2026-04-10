@@ -101,7 +101,7 @@ export default function Layout() {
                     </div>
                 </header>
 
-                <div className="p-8 max-w-[1900px] mx-auto">
+                 <div className="px-8 py-6 max-w-[1900px] mx-auto">
                     <Outlet />
                 </div>
             </main>
