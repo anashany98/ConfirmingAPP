@@ -8,6 +8,7 @@ from ..models import Batch, Invoice, BatchStatus, Provider
 from ..schemas import Batch as BatchSchema, InvoiceCreate, BatchBase
 from ..services.duplicate_service import summarize_duplicate_groups
 from ..services.export_service import generate_bankinter_excel
+from ..utils.log_files import append_log_line
 from datetime import datetime, date, timedelta
 
 router = APIRouter(
@@ -401,8 +402,7 @@ def export_batch(batch_id: int, db: Session = Depends(get_db)):
         try:
             file_content = generate_bankinter_excel(batch.invoices, db)
         except Exception as e:
-            with open("export_error.log", "a") as f:
-                f.write(f"\n[ERROR GENERATING EXCEL]: {str(e)}\n{traceback.format_exc()}\n")
+            append_log_line("export_error.log", f"\n[ERROR GENERATING EXCEL]: {str(e)}\n{traceback.format_exc()}\n")
             raise HTTPException(status_code=500, detail=f"Error generando Excel: {str(e)}")
         
         # Filename: [CreationDate]_CONFIRMING_[DueDate] (ISO format for better sorting)
@@ -410,47 +410,41 @@ def export_batch(batch_id: int, db: Session = Depends(get_db)):
         due_date_str = batch.payment_date.strftime('%Y-%m-%d') if batch.payment_date else "SinVencimiento"
         filename = f"{creation_date_str}_CONFIRMING_{due_date_str}.xlsx"
         
-        # Check for export path in settings
+# Check for export path in settings
         from ..models import Settings
         settings_obj = db.query(Settings).first()
         
-        with open("debug_export.log", "a") as log:
-            log.write(f"\n--- EXPORT REQUEST {datetime.now()} ---\n")
-            log.write(f"Settings found: {settings_obj is not None}\n")
-            if settings_obj:
-                log.write(f"Export Path in DB: '{settings_obj.export_path}'\n")
+        append_log_line("debug_export.log", f"\n--- EXPORT REQUEST {datetime.now()} ---\n")
+        append_log_line("debug_export.log", f"Settings found: {settings_obj is not None}\n")
+        if settings_obj:
+            export_path = settings_obj.export_path
+            append_log_line("debug_export.log", f"Export Path in DB: '{export_path}'\n")
 
         if settings_obj and settings_obj.export_path and settings_obj.export_path.strip():
             import os
             try:
                 # Ensure directory exists
                 target_dir = settings_obj.export_path.strip()
-                with open("debug_export.log", "a") as log:
-                    log.write(f"Target Dir: '{target_dir}'\n")
+                append_log_line("debug_export.log", f"Target Dir: '{target_dir}'\n")
                 
                 os.makedirs(target_dir, exist_ok=True)
                 full_path = os.path.join(target_dir, filename)
                 
-                with open("debug_export.log", "a") as log:
-                    log.write(f"Writing to: '{full_path}'\n")
+                append_log_line("debug_export.log", f"Writing to: '{full_path}'\n")
                 
                 with open(full_path, "wb") as f:
                     f.write(file_content) # file_content is bytes
                     
-                with open("debug_export.log", "a") as log:
-                    log.write("SUCCESS: File written.\n")
-                
+                append_log_line("debug_export.log", "SUCCESS: File written.\n")
+                    
                 # No need to seek for bytes
             except Exception as e:
-                with open("debug_export.log", "a") as log:
-                    log.write(f"ERROR: {str(e)}\n{traceback.format_exc()}\n")
+                append_log_line("debug_export.log", f"ERROR: {str(e)}\n{traceback.format_exc()}\n")
                 
                 # Also log to main error log
-                with open("export_error.log", "a") as f:
-                    f.write(f"\n[ERROR SAVING LOCAL]: {str(e)}\n{traceback.format_exc()}\n")
+                append_log_line("export_error.log", f"\n[ERROR SAVING LOCAL]: {str(e)}\n{traceback.format_exc()}\n")
         else:
-             with open("debug_export.log", "a") as log:
-                log.write("SKIP: No export path configured.\n")
+             append_log_line("debug_export.log", "SKIP: No export path configured.\n")
         
         # Update status
         batch.status = BatchStatus.SENT
@@ -464,8 +458,7 @@ def export_batch(batch_id: int, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        with open("export_error.log", "a") as f:
-            f.write(f"\n[CRITICAL EXPORT ERROR]: {str(e)}\n{traceback.format_exc()}\n")
+        append_log_line("export_error.log", f"\n[CRITICAL EXPORT ERROR]: {str(e)}\n{traceback.format_exc()}\n")
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 @router.patch("/{batch_id}/toggle-upload", response_model=BatchSchema)
