@@ -16,6 +16,55 @@ interface UserData {
     created_at: string
 }
 
+interface RequestError {
+    response?: {
+        data?: {
+            detail?: unknown
+        }
+    }
+    message?: string
+}
+
+function formatApiErrorMessage(detail: unknown, fallback: string): string {
+    if (typeof detail === 'string' && detail.trim()) {
+        return detail
+    }
+
+    if (Array.isArray(detail)) {
+        const messages = detail
+            .map((item) => {
+                if (typeof item === 'string' && item.trim()) {
+                    return item
+                }
+
+                if (item && typeof item === 'object') {
+                    const record = item as { loc?: unknown; msg?: unknown }
+                    const message = typeof record.msg === 'string' ? record.msg : ''
+                    const location = Array.isArray(record.loc)
+                        ? record.loc.filter((part) => part !== 'body').join('.')
+                        : ''
+
+                    if (location && message) {
+                        return `${location}: ${message}`
+                    }
+
+                    if (message) {
+                        return message
+                    }
+                }
+
+                return null
+            })
+            .filter((message): message is string => Boolean(message))
+
+        if (messages.length > 0) {
+            return messages.join(' | ')
+        }
+    }
+
+    return fallback
+}
+
 export default function UsersHelper() {
     const queryClient = useQueryClient()
     const { logout } = useAuth()
@@ -52,9 +101,22 @@ export default function UsersHelper() {
     const token = localStorage.getItem('auth_token')
     const authHeaders = { headers: { Authorization: `Bearer ${token}` } }
 
+    const getErrorMessage = (err: RequestError, fallback: string) => {
+        const defaultMessage = err.message || fallback
+        return formatApiErrorMessage(err.response?.data?.detail, defaultMessage)
+    }
+
     const createMutation = useMutation({
         mutationFn: async () => {
-            await axios.post(`${API_URL}/auth/register`, newUser, authHeaders)
+            const payload: { username: string; password: string; email?: string } = {
+                username: newUser.username.trim(),
+                password: newUser.password,
+            }
+            const email = newUser.email.trim()
+            if (email) {
+                payload.email = email
+            }
+            await axios.post(`${API_URL}/auth/register`, payload, authHeaders)
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['users'] })
@@ -62,7 +124,7 @@ export default function UsersHelper() {
             setNewUser({ username: '', password: '', email: '' })
             toast.success('Usuario creado correctamente')
         },
-        onError: (err: { response?: { data?: { detail?: string } } }) => toast.error(err.response?.data?.detail || 'Error creando usuario')
+        onError: (err: RequestError) => toast.error(getErrorMessage(err, 'Error creando usuario'))
     })
 
     const deleteMutation = useMutation({
@@ -74,7 +136,7 @@ export default function UsersHelper() {
             setDeleteId(null)
             toast.success('Usuario eliminado')
         },
-        onError: (err: { response?: { data?: { detail?: string } } }) => toast.error(err.response?.data?.detail || 'Error eliminando usuario')
+        onError: (err: RequestError) => toast.error(getErrorMessage(err, 'Error eliminando usuario'))
     })
 
     const resetMutation = useMutation({
@@ -87,7 +149,7 @@ export default function UsersHelper() {
             setNewPassword('')
             toast.success('Contraseña reseteada')
         },
-        onError: (err: { response?: { data?: { detail?: string } } }) => toast.error(err.response?.data?.detail || 'Error reseteando contraseña')
+        onError: (err: RequestError) => toast.error(getErrorMessage(err, 'Error reseteando contraseña'))
     })
 
     const changeMyPasswordMutation = useMutation({
@@ -103,7 +165,7 @@ export default function UsersHelper() {
             toast.success('Tu contraseña ha sido actualizada. Por favor inicia sesión de nuevo.')
             logout()
         },
-        onError: (err: { response?: { data?: { detail?: string } } }) => toast.error(err.response?.data?.detail || 'Error cambiando contraseña')
+        onError: (err: RequestError) => toast.error(getErrorMessage(err, 'Error cambiando contraseña'))
     })
 
     if (isLoading) return <div className="p-8 text-center text-slate-500">Cargando usuarios...</div>
@@ -233,7 +295,7 @@ export default function UsersHelper() {
                             <button onClick={() => setIsCreateOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800">Cancelar</button>
                             <button
                                 onClick={() => createMutation.mutate()}
-                                disabled={!newUser.username || !newUser.password}
+                                disabled={!newUser.username.trim() || !newUser.password}
                                 className="px-4 py-2 text-sm font-medium bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
                             >
                                 Crear Usuario

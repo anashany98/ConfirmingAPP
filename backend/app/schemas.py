@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
@@ -110,6 +110,13 @@ class TokenData(BaseModel):
 class UserBase(BaseModel):
     username: str
     email: Optional[EmailStr] = None
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_blank_email(cls, value: Optional[str]):
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 class UserCreate(UserBase):
     password: str

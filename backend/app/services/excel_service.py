@@ -3,18 +3,17 @@ import io
 import re
 import traceback
 import logging
-import os
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from ..models import Provider
 from ..services.duplicate_service import annotate_import_duplicates
+from ..utils.log_files import append_log_line, resolve_log_dir
 from ..utils.validators import validate_iban, validate_spanish_cif
 
-# Setup logger - write to /app/logs instead of /app
-log_dir = '/app/logs'
-os.makedirs(log_dir, exist_ok=True)
+# Setup logger in a writable location for both Docker and local runs
+log_dir = resolve_log_dir()
 logging.basicConfig(
-    filename=os.path.join(log_dir, 'import_error.log'),
+    filename=str(log_dir / 'import_error.log'),
     level=logging.ERROR,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
@@ -31,25 +30,25 @@ def process_excel_file(content: bytes, db: Session | None = None):
         df_scan = pd.read_excel(io.BytesIO(content), header=None, nrows=15)
         
         is_factusol_report = False
-        debug_log_path = os.path.join(log_dir, 'debug_manual.log')
-        with open(debug_log_path, "a") as f: 
-            f.write("Scanning for Factusol signature...\n")
-            for i in range(len(df_scan)):
-                row_list = [str(x) for x in df_scan.iloc[i].values]
-                row_str = " ".join(row_list)
-                f.write(f"Row {i}: {row_str}\n")
-                
-                # Check signature
-                if "Fec.Exp." in row_str and "Banco" in row_str:
-                    is_factusol_report = True
-                    f.write("--> SIGNATURE MATCHED!\n")
-                    break
+        debug_lines = ["Scanning for Factusol signature..."]
+        for i in range(len(df_scan)):
+            row_list = [str(x) for x in df_scan.iloc[i].values]
+            row_str = " ".join(row_list)
+            debug_lines.append(f"Row {i}: {row_str}")
+
+            # Check signature
+            if "Fec.Exp." in row_str and "Banco" in row_str:
+                is_factusol_report = True
+                debug_lines.append("--> SIGNATURE MATCHED!")
+                break
+
+        append_log_line("debug_manual.log", "\n".join(debug_lines) + "\n")
                 
         if is_factusol_report:
             df = pd.read_excel(io.BytesIO(content), header=None)
             return process_factusol_report(df, db)
         else:
-            with open(debug_log_path, "a") as f: f.write("--> No signature. Falling back to simple table.\n")
+            append_log_line("debug_manual.log", "--> No signature. Falling back to simple table.\n")
             return process_flat_table(content, db)
 
     except Exception as e:

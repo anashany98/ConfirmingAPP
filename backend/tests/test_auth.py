@@ -1,4 +1,5 @@
 import pytest
+from app import schemas
 from app.models import User
 from app.services.auth import (
     verify_password,
@@ -151,6 +152,11 @@ class TestAuthEndpoints:
         data = response.json()
         assert data["username"] == "newuser"
         assert data["email"] == "new@example.com"
+
+    def test_create_user_allows_blank_email(self):
+        """Should normalize blank email values instead of rejecting them."""
+        user = schemas.UserCreate(username="blankemailuser", email="", password="newpassword123")
+        assert user.email is None
 
     def test_create_duplicate_user(self, client, test_user, auth_headers):
         """Should fail when creating duplicate username."""
