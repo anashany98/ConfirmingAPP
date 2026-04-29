@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fastapi.testclient import TestClient
 from app.main import app
 from app.database import Base, get_db
-from app.models import User
+from app.models import User, Batch, Invoice, Provider, Settings  # Importar todos los modelos
 from app.services.auth import get_password_hash
 
 

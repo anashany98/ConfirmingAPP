@@ -7,6 +7,7 @@ from ..database import get_db
 from ..models import Batch, Invoice, BatchStatus, Provider
 from ..schemas import Batch as BatchSchema, InvoiceCreate, BatchBase
 from ..services.duplicate_service import summarize_duplicate_groups
+from ..services.provider_service import upsert_providers_by_cif, normalize_cif
 from ..services.export_service import generate_bankinter_excel
 from ..utils.log_files import append_log_line
 from datetime import datetime, date, timedelta
@@ -286,58 +287,49 @@ def create_batch(batch_in: BatchInput, db: Session = Depends(get_db)):
         db.add(db_batch)
         db.flush()
 
+        # Recopilar datos de proveedores del lote (deduplicar por CIF)
+        providers_data = []
+        for inv_data in batch_in.invoices:
+            data = inv_data.model_dump()
+            if data.get('cif'):
+                providers_data.append({
+                    'cif': normalize_cif(data['cif']),
+                    'name': data.get('nombre'),
+                    'email': data.get('email'),
+                    'address': data.get('direccion'),
+                    'city': data.get('poblacion'),
+                    'zip_code': data.get('cp'),
+                    'country': data.get('pais'),
+                    'phone': data.pop('phone', None),
+                    'iban': data.get('cuenta')
+                })
+        
+        # UPSERT de proveedores (deduplicado e insertado/actualizado en lote)
+        providers_map = upsert_providers_by_cif(db, providers_data)
+        
+        # Ahora crear las facturas/transferencias
         for inv_data in batch_in.invoices:
             data = inv_data.model_dump()
             provider_phone = data.pop('phone', None)
             data.pop('duplicate_status', None)
             data.pop('duplicate_message', None)
             data.pop('duplicate_count', None)
-
+            
             invoice_status = data.pop('status', 'VALID') or 'VALID'
-
+            
             if global_due_date:
                 data['fecha_vencimiento'] = global_due_date
-
+            
+            # Normalizar CIF en la factura también
+            if data.get('cif'):
+                data['cif'] = normalize_cif(data['cif'])
+            
             db_inv = Invoice(
                 **data,
                 batch_id=db_batch.id,
                 status=invoice_status,
             )
             db.add(db_inv)
-
-            if data.get('cif'):
-                provider = db.query(Provider).filter(Provider.cif == data['cif']).first()
-                if not provider:
-                    db.add(
-                        Provider(
-                            cif=data['cif'],
-                            name=data['nombre'],
-                            email=data['email'],
-                            address=data.get('direccion'),
-                            city=data.get('poblacion'),
-                            zip_code=data.get('cp'),
-                            country=data.get('pais'),
-                            phone=provider_phone,
-                            iban=data.get('cuenta')
-                        )
-                    )
-                else:
-                    if data.get('nombre'):
-                        provider.name = data['nombre']
-                    if data.get('email'):
-                        provider.email = data['email']
-                    if data.get('direccion'):
-                        provider.address = data['direccion']
-                    if data.get('poblacion'):
-                        provider.city = data['poblacion']
-                    if data.get('cp'):
-                        provider.zip_code = data['cp']
-                    if data.get('pais'):
-                        provider.country = data['pais']
-                    if data.get('cuenta'):
-                        provider.iban = data['cuenta']
-                    if provider_phone:
-                        provider.phone = provider_phone
 
         db.commit()
         db.refresh(db_batch)
